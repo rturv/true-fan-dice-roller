@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diced · Chat Dice Roller</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f8f8f8;
+      --fg: #202020;
+      --fg-2: #4e4e4e;
+      --muted: #646464;
+      --meta: #8d8d8d;
+      --border: #202020;
+      --border-soft: #e5e5e5;
+      --accent: #ea2804;
+      --accent-on: #ffffff;
+      --success: #2b9a66;
+      --danger: #dc2626;
+      --warn: #eab308;
+
+      --font-display: "rb-freigeist-neue", ui-sans-serif, system-ui, sans-serif;
+      --font-body: "basier-square", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "jetbrains-mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+
+      --radius-sm: 9999px;
+      --radius-md: 9999px;
+      --radius-lg: 9999px;
+      --radius-pill: 9999px;
+
+      --motion-fast: 120ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.5;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+    }
+    button { font: inherit; cursor: pointer; }
+    select { font: inherit; }
+    p { margin: 0; }
+
+    .app-header {
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 80%, black), color-mix(in oklab, var(--accent) 55%, black));
+      padding: var(--space-4) var(--space-6);
+    }
+    .app-header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+    .app-logo {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent-on);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .user-picker {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      background: rgba(255,255,255,0.12);
+      border-radius: 9999px;
+      padding: var(--space-1) var(--space-4) var(--space-1) var(--space-5);
+      backdrop-filter: blur(8px);
+    }
+    .user-picker label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+      font-weight: 500;
+    }
+    .user-picker select {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: var(--accent-on);
+      border-radius: 9999px;
+      padding: 6px 32px 6px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      cursor: pointer;
+    }
+    .user-picker select option {
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .user-picker select:focus {
+      outline: 2px solid rgba(255,255,255,0.5);
+    }
+
+    .chat-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-5) var(--space-6);
+      scroll-behavior: smooth;
+    }
+    .chat-log-inner {
+      max-width: 680px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .roll-entry {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: var(--space-4) var(--space-6);
+      transition: opacity var(--motion-base) var(--ease-standard);
+    }
+    .roll-entry.self-roll {
+      background: var(--bg);
+      border-width: 2px;
+    }
+    .roll-entry-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+      gap: var(--space-2);
+    }
+    .roll-user {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--fg);
+    }
+    .roll-user .badge-you {
+      display: inline-block;
+      background: var(--success);
+      color: white;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 1px 8px;
+      border-radius: 9999px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .roll-time {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--meta);
+    }
+
+    .dice-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      align-items: center;
+      margin-bottom: var(--space-2);
+    }
+    .die {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 9999px;
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+    .die.added {
+      border-color: var(--accent);
+      border-style: dashed;
+    }
+    .die.pip-6 { background: color-mix(in oklch, var(--fg) 8%, var(--bg)); border-width: 2px; }
+
+    .roll-summary {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+    .roll-total {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+    .roll-detail {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .roll-explosion {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--success);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .roll-explosion::before {
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: currentColor;
+      border-radius: 9999px;
+      opacity: 0.3;
+    }
+
+    .entry-connector {
+      text-align: center;
+      padding: var(--space-2) 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--meta);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .entry-connector::before,
+    .entry-connector::after {
+      content: '';
+      display: inline-block;
+      width: 24px;
+      height: 1px;
+      background: var(--border-soft);
+      vertical-align: middle;
+      margin: 0 8px;
+    }
+
+    .welcome-prompt {
+      text-align: center;
+      padding: var(--space-12) var(--space-4);
+      color: var(--muted);
+    }
+    .welcome-prompt h2 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--fg);
+      margin: 0 0 var(--space-2);
+      letter-spacing: -0.01em;
+    }
+    .welcome-prompt p {
+      font-size: 15px;
+      max-width: 36ch;
+      margin: 0 auto var(--space-6);
+    }
+    .welcome-prompt .example-dice {
+      display: inline-flex;
+      gap: var(--space-2);
+      justify-content: center;
+      margin-bottom: var(--space-4);
+    }
+    .welcome-prompt .example-dice .die {
+      width: 32px;
+      height: 32px;
+      font-size: 13px;
+    }
+
+    .controls-bar {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      padding: var(--space-4) var(--space-6);
+    }
+    .controls-inner {
+      max-width: 680px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+    .dice-counter {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: var(--surface);
+      border-radius: 9999px;
+      padding: var(--space-1);
+      border: 1px solid var(--border);
+    }
+    .dice-counter button {
+      width: 36px;
+      height: 36px;
+      border-radius: 9999px;
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+      transition: background var(--motion-fast) var(--ease-standard);
+    }
+    .dice-counter button:hover { background: var(--surface); }
+    .dice-counter button:active { background: var(--border-soft); }
+    .dice-counter .count-label {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: center;
+      color: var(--fg);
+    }
+    .dice-counter .dice-label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+      padding-right: var(--space-2);
+    }
+
+    .roll-btn {
+      flex: 1;
+      height: 48px;
+      border-radius: 9999px;
+      border: none;
+      background: var(--accent);
+      color: var(--accent-on);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+      padding: 0 var(--space-8);
+      transition: background var(--motion-fast) var(--ease-standard), transform 0.05s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+    }
+    .roll-btn:hover { background: color-mix(in oklab, var(--accent), black 8%); }
+    .roll-btn:active { transform: translateY(1px); }
+    .roll-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .roll-btn .roll-icon {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--accent-on);
+      border-radius: 9999px;
+    }
+    .roll-btn.rolling .roll-icon {
+      animation: spin 400ms linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .dice-count-display {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    @media (max-width: 600px) {
+      .app-header { padding: var(--space-3); }
+      .app-header-inner { flex-wrap: wrap; }
+      .app-logo { font-size: 20px; }
+      .user-picker { padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4); }
+      .chat-log { padding: var(--space-3); }
+      .roll-entry { padding: var(--space-3) var(--space-4); border-radius: 24px; }
+      .controls-bar { padding: var(--space-3); }
+      .controls-inner { gap: var(--space-3); }
+      .roll-btn { font-size: 16px; padding: 0 var(--space-5); }
+    }
+
+    .fade-in {
+      animation: fadeIn 300ms var(--ease-standard);
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-log::-webkit-scrollbar { width: 6px; }
+    .chat-log::-webkit-scrollbar-track { background: transparent; }
+    .chat-log::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 9999px; }
+    .chat-log::-webkit-scrollbar-thumb:hover { background: var(--meta); }
+  </style>
+</head>
+<body>
+
+  <header class="app-header" data-od-id="header">
+    <div class="app-header-inner">
+      <span class="app-logo">Diced</span>
+      <div class="user-picker">
+        <label>Rolling as</label>
+        <select id="user-select"></select>
+      </div>
+    </div>
+  </header>
+
+  <main class="chat-log" id="chat-log" data-od-id="chat">
+    <div class="chat-log-inner" id="chat-inner">
+      <div class="welcome-prompt" id="welcome">
+        <h2>Roll the dice together</h2>
+        <p>Pick your name and start rolling. Watch the chat light up.</p>
+        <div class="example-dice">
+          <span class="die">1</span>
+          <span class="die">3</span>
+          <span class="die pip-6">6</span>
+          <span class="die">2</span>
+          <span class="die">5</span>
+          <span class="die">4</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="controls-bar" data-od-id="controls">
+    <div class="controls-inner">
+      <div class="dice-counter">
+        <button id="dec-dice" aria-label="Fewer dice">−</button>
+        <div class="dice-count-display">
+          <span class="count-label" id="dice-count">2</span>
+          <span class="dice-label">d6</span>
+        </div>
+        <button id="inc-dice" aria-label="More dice">+</button>
+      </div>
+      <button class="roll-btn" id="roll-btn">
+        <span class="roll-icon"></span>
+        Roll
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      var USERS = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve'];
+      var DICE_MIN = 1;
+      var DICE_MAX = 20;
+
+      var currentUser = USERS[0];
+      var diceCount = 2;
+      var isRolling = false;
+      var rollHistory = [];
+      var botIntervals = [];
+
+      var chatInner = document.getElementById('chat-inner');
+      var welcomeEl = document.getElementById('welcome');
+      var chatLog = document.getElementById('chat-log');
+      var userSelect = document.getElementById('user-select');
+      var diceCountEl = document.getElementById('dice-count');
+      var rollBtn = document.getElementById('roll-btn');
+      var decBtn = document.getElementById('dec-dice');
+      var incBtn = document.getElementById('inc-dice');
+
+      function populateUsers() {
+        userSelect.innerHTML = USERS.map(function(u) {
+          return '<option value="' + u + '">' + u + '</option>';
+        }).join('');
+        userSelect.addEventListener('change', function() {
+          currentUser = userSelect.value;
+          startBotRolls();
+        });
+        currentUser = userSelect.value;
+      }
+
+      function rollDie() {
+        return Math.floor(Math.random() * 6) + 1;
+      }
+
+      function explode(initialValues) {
+        var allValues = initialValues.slice();
+        var explosionCount = 0;
+        var i = 0;
+        while (i < allValues.length) {
+          if (allValues[i] === 6) {
+            var extra = rollDie();
+            allValues.push(extra);
+            explosionCount++;
+          }
+          i++;
+        }
+        return { values: allValues, explosions: explosionCount };
+      }
+
+      function rollDice(count) {
+        var initial = [];
+        for (var i = 0; i < count; i++) {
+          initial.push(rollDie());
+        }
+        var result = explode(initial);
+        var total = result.values.reduce(function(a, b) { return a + b; }, 0);
+        return {
+          count: count,
+          initialCount: count,
+          values: result.values,
+          total: total,
+          explosions: result.explosions
+        };
+      }
+
+      function now() {
+        var d = new Date();
+        return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+      }
+
+      function createDieEl(value, isAdded) {
+        var el = document.createElement('span');
+        el.className = 'die pip-' + value;
+        if (isAdded) el.classList.add('added');
+        el.textContent = value;
+        return el;
+      }
+
+      function createRollEntry(username, result, timestamp) {
+        var isSelf = username === currentUser;
+
+        var entry = document.createElement('div');
+        entry.className = 'roll-entry fade-in';
+        if (isSelf) entry.classList.add('self-roll');
+
+        var header = document.createElement('div');
+        header.className = 'roll-entry-header';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'roll-user';
+        nameSpan.textContent = username;
+        if (isSelf) {
+          var badge = document.createElement('span');
+          badge.className = 'badge-you';
+          badge.textContent = 'you';
+          nameSpan.appendChild(badge);
+        }
+
+        var timeSpan = document.createElement('span');
+        timeSpan.className = 'roll-time';
+        timeSpan.textContent = timestamp;
+
+        header.appendChild(nameSpan);
+        header.appendChild(timeSpan);
+        entry.appendChild(header);
+
+        var diceRow = document.createElement('div');
+        diceRow.className = 'dice-row';
+
+        var initialCount = result.initialCount;
+
+        for (var i = 0; i < result.values.length; i++) {
+          var isExplosionDie = (i >= initialCount);
+          var isAddedDie = isExplosionDie;
+          var isExplodingSix = (result.values[i] === 6);
+
+          var dieEl = createDieEl(result.values[i], isAddedDie);
+
+          if (i > 0 && (i === initialCount)) {
+            var plus = document.createElement('span');
+            plus.className = 'roll-detail';
+            plus.textContent = '+';
+            diceRow.appendChild(plus);
+          }
+
+          diceRow.appendChild(dieEl);
+        }
+
+        entry.appendChild(diceRow);
+
+        if (result.explosions > 0) {
+          var explBadge = document.createElement('span');
+          explBadge.className = 'roll-explosion';
+          explBadge.textContent = result.explosions + ' exploded';
+          diceRow.appendChild(explBadge);
+        }
+
+        var summary = document.createElement('div');
+        summary.className = 'roll-summary';
+        var totalSpan = document.createElement('span');
+        totalSpan.className = 'roll-total';
+        totalSpan.textContent = '= ' + result.total;
+
+        var detailSpan = document.createElement('span');
+        detailSpan.className = 'roll-detail';
+        detailSpan.textContent = result.values.length + ' die' + (result.values.length !== 1 ? 's' : '');
+
+        summary.appendChild(totalSpan);
+        summary.appendChild(detailSpan);
+        entry.appendChild(summary);
+
+        return entry;
+      }
+
+      function removeWelcome() {
+        if (welcomeEl && welcomeEl.parentNode) {
+          welcomeEl.parentNode.removeChild(welcomeEl);
+          welcomeEl = null;
+        }
+      }
+
+      function addRollEntry(username, result, timestamp) {
+        removeWelcome();
+        var entry = createRollEntry(username, result, timestamp || now());
+        chatInner.appendChild(entry);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
+      function performRoll(username, count, isBot) {
+        if (isRolling) return;
+        isRolling = true;
+        if (!isBot) rollBtn.classList.add('rolling');
+        rollBtn.disabled = true;
+
+        setTimeout(function() {
+          var result = rollDice(count);
+          addRollEntry(username, result, now());
+          isRolling = false;
+          rollBtn.classList.remove('rolling');
+          rollBtn.disabled = false;
+
+          if (!isBot) {
+            rollHistory.push({ user: username, result: result, time: new Date() });
+            if (typeof window.rollCallback === 'function') {
+              window.rollCallback(username, result);
+            }
+          }
+        }, isBot ? 200 : 400);
+      }
+
+      function performUserRoll() {
+        if (isRolling) return;
+        performRoll(currentUser, diceCount, false);
+      }
+
+      function randomBotRoll() {
+        var bots = USERS.filter(function(u) { return u !== currentUser; });
+        if (bots.length === 0) return;
+        var bot = bots[Math.floor(Math.random() * bots.length)];
+        var count = Math.floor(Math.random() * 6) + 1;
+        performRoll(bot, count, true);
+      }
+
+      function startBotRolls() {
+        botIntervals.forEach(function(id) { clearInterval(id); });
+        botIntervals = [];
+
+        var bots = USERS.filter(function(u) { return u !== currentUser; });
+        if (bots.length === 0) return;
+
+        bots.forEach(function(bot) {
+          var scheduleNext = function() {
+            var delay = 6000 + Math.random() * 16000;
+            var id = setTimeout(function() {
+              var count = Math.floor(Math.random() * 6) + 1;
+              performRoll(bot, count, true);
+              scheduleNext();
+            }, delay);
+            botIntervals.push(id);
+          };
+          var initialDelay = 1000 + Math.random() * 4000;
+          var startId = setTimeout(function() {
+            scheduleNext();
+          }, initialDelay);
+          botIntervals.push(startId);
+        });
+      }
+
+      function updateDiceCount() {
+        diceCountEl.textContent = diceCount;
+      }
+
+      decBtn.addEventListener('click', function() {
+        if (diceCount > DICE_MIN) {
+          diceCount--;
+          updateDiceCount();
+        }
+      });
+
+      incBtn.addEventListener('click', function() {
+        if (diceCount < DICE_MAX) {
+          diceCount++;
+          updateDiceCount();
+        }
+      });
+
+      rollBtn.addEventListener('click', performUserRoll);
+
+      populateUsers();
+      updateDiceCount();
+      startBotRolls();
+
+      window.addEventListener('beforeunload', function() {
+        botIntervals.forEach(function(id) { clearInterval(id); });
+      });
+
+      window.DicedApp = {
+        roll: function(username, count) {
+          if (username && count) {
+            performRoll(username, count, true);
+          }
+        },
+        getHistory: function() { return rollHistory.slice(); },
+        getUsers: function() { return USERS.slice(); },
+        getCurrentUser: function() { return currentUser; },
+        setRollCallback: function(fn) { window.rollCallback = fn; }
+      };
+    })();
+  </script>
+</body>
+</html>

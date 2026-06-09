@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Diced · Chat Dice Roller",
+  "entry": "diced-chat-dice-roller.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-31T23:20:54.213Z",
+  "updatedAt": "2026-05-31T23:28:20.607Z",
+  "sourceSkillId": "agent-browser",
+  "designSystemId": "replicate",
+  "metadata": {
+    "identifier": "diced-chat-dice-roller",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

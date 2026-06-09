@@ -1,0 +1,91 @@
+# ─── Maven / Java ───────────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+*.ear
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+.flattened-pom.xml
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# ─── Quarkus ────────────────────────────────────────────────
+/.quarkus/cli/plugins/
+.certs/
+*.proto
+
+# ─── Node / npm / Angular ───────────────────────────────────
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── Angular build output ───────────────────────────────────
+frontend/dist/
+frontend/tmp/
+frontend/out-tsc/
+frontend/bazel-out/
+frontend/.angular/cache/
+
+# ─── Environment ────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─── IDE / Editor ───────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+bin/
+.factorypath
+*.launch
+*.sublime-workspace
+.c9/
+
+# ─── VS Code (keep workspace settings) ─────────────────────
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+
+# ─── OS files ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ─── Patches / backups ──────────────────────────────────────
+*.orig
+*.rej
+*.bak
+*.old
+
+# ─── Test / coverage / logs ─────────────────────────────────
+/coverage/
+__screenshots__/
+*.log
+testem.log
+connect.lock
+libpeerconnection.log
+.history/
+
+# ─── Docker ─────────────────────────────────────────────────
+backend/.dockerignore
+
+# ─── Misc ───────────────────────────────────────────────────
+/typings/
+nb-configuration.xml
