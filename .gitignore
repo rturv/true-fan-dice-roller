@@ -89,3 +89,5 @@ backend/.dockerignore
 # ─── Misc ───────────────────────────────────────────────────
 /typings/
 nb-configuration.xml
+
+.playwright-mcp/*
