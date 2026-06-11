@@ -91,3 +91,6 @@ backend/.dockerignore
 nb-configuration.xml
 
 .playwright-mcp/*
+# Runtime generated
+frontend/src/assets/env.js
+frontend/dist/

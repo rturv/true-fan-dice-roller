@@ -500,10 +500,14 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   private connectWebSocket(): void {
+    const win = window as unknown as Record<string, Record<string, string>>;
+    const configuredWsUrl = (win['__env']?.['backendWsUrl'] ?? '').trim();
     const isDev = window.location.port === '4200';
-    const host = isDev ? 'localhost:8080' : window.location.host;
+    const host = configuredWsUrl || (isDev ? 'localhost:8080' : window.location.host);
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${host}/ws/room`;
+    const wsUrl = configuredWsUrl
+      ? configuredWsUrl
+      : `${protocol}//${host}/ws/room`;
 
     this.ws.connect(wsUrl);
 

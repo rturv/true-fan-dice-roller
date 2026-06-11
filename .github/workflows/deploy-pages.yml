@@ -1,0 +1,86 @@
+# =============================================================================
+# Deploy Frontend to GitHub Pages
+#
+# After deployment, configure your Pages source as "GitHub Actions"
+# in your repo Settings > Pages.
+# The backend URL is set via repository secrets or manually in env.js.
+# =============================================================================
+name: Deploy Frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+    inputs:
+      backend_ws_url:
+        description: 'Backend WebSocket URL (e.g., wss://api.example.com)'
+        required: false
+        type: string
+      backend_http_url:
+        description: 'Backend HTTP URL (e.g., https://api.example.com)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npx ng build --configuration production --base-href /${{ github.event.repository.name }}/
+
+      - name: Generate runtime env.js
+        run: |
+          mkdir -p dist/frontend/browser/assets
+          cat > dist/frontend/browser/assets/env.js << 'EOF'
+          (function (window) {
+            window.__env = window.__env || {};
+            window.__env.backendWsUrl = '${{ inputs.backend_ws_url || secrets.BACKEND_WS_URL || "" }}';
+            window.__env.backendHttpUrl = '${{ inputs.backend_http_url || secrets.BACKEND_HTTP_URL || "" }}';
+          })(this);
+          EOF
+          echo "Generated env.js with backendWsUrl=${{ inputs.backend_ws_url || secrets.BACKEND_WS_URL || '(empty)' }}"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist/frontend/browser
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
