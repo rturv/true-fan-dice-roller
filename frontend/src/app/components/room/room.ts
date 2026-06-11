@@ -7,7 +7,7 @@ import type {
   JoinedMessage, DiceRollMessage, CardDrawMessage,
   TextMessage, UserJoinedMessage, UserLeftMessage,
   UserKickedMessage, AdminChangedMessage, DeckReshuffledMessage,
-  UserListMessage, HistoryEntry, DrawResult, PoolUpdatedMessage
+  UserListMessage, HistoryEntry, DrawResult, PoolUpdatedMessage, CardsToggledMessage
 } from '../../models/game.models';
 
 @Component({
@@ -39,6 +39,13 @@ import type {
               <label>Players</label>
               <span class="user-count">{{ connectedUsers().length }}</span>
             </div>
+          }
+          @if (isAdmin()) {
+            <label class="cards-toggle" title="Activar/desactivar cartas">
+              <span class="cards-toggle-label">Cartas</span>
+              <input type="checkbox" [checked]="cardsEnabled()" (change)="doToggleCards()" />
+              <span class="cards-toggle-switch"></span>
+            </label>
           }
           <button class="theme-toggle" (click)="toggleTheme()" aria-label="Toggle dark mode">
             <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -149,7 +156,7 @@ import type {
               </div>
               <div class="msg-text">{{ entry.text }}</div>
             </div>
-           } @else if (entry.type === 'system' || entry.type === 'user_joined' || entry.type === 'user_left' || entry.type === 'user_kicked' || entry.type === 'admin_changed' || entry.type === 'deck_reshuffled' || entry.type === 'pool_updated') {
+           } @else if (entry.type === 'system' || entry.type === 'user_joined' || entry.type === 'user_left' || entry.type === 'user_kicked' || entry.type === 'admin_changed' || entry.type === 'deck_reshuffled' || entry.type === 'pool_updated' || entry.type === 'cards_toggled') {
             <div class="entry-connector">{{ systemMessage(entry) }}</div>
           }
         }
@@ -185,7 +192,7 @@ import type {
           <span class="roll-icon"></span>
           Roll
         </button>
-        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected()">
+        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !cardsEnabled()" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : ''">
           <span class="draw-card-icon"></span>
           Carta!
         </button>
@@ -272,6 +279,31 @@ import type {
     }
     .theme-toggle:hover { background: rgba(255,255,255,0.2); }
     .theme-toggle svg { width: 20px; height: 20px; fill: var(--accent-on); }
+
+    /* Cards toggle */
+    .cards-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 2px 10px; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.1); cursor: pointer;
+      user-select: none; height: 32px;
+    }
+    .cards-toggle-label {
+      font-size: 11px; color: var(--accent-on); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .cards-toggle input { display: none; }
+    .cards-toggle-switch {
+      width: 32px; height: 18px; background: rgba(255,255,255,0.25);
+      border-radius: 9999px; position: relative; transition: background 120ms;
+    }
+    .cards-toggle-switch::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--accent-on); transition: transform 120ms;
+    }
+    .cards-toggle input:checked + .cards-toggle-switch { background: var(--success); }
+    .cards-toggle input:checked + .cards-toggle-switch::after { transform: translateX(14px); }
+    .cards-toggle:hover { background: rgba(255,255,255,0.18); }
     .icon-sun { display: none; }
     :root[data-theme="dark"] .icon-sun { display: block; }
     :root[data-theme="dark"] .icon-moon { display: none; }
@@ -554,6 +586,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected modifier = signal(0);
   protected wsConnected = signal(false);
   protected poolValue = signal(0);
+  protected cardsEnabled = signal(true);
   protected poolModalOpen = signal(false);
   protected poolModalInput = signal('');
   protected copied = signal(false);
@@ -615,6 +648,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       this.isAdmin.set(msg.isAdmin);
       this.connectedUsers.set(msg.users);
       this.poolValue.set(msg.poolValue ?? 0);
+      this.cardsEnabled.set(msg.cardsEnabled ?? true);
 
       if (msg.roomCode && msg.roomCode !== this.roomCode()) {
         this.roomCode.set(msg.roomCode);
@@ -758,6 +792,19 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       });
     }));
 
+    this.cleanupFns.push(this.ws.on('cards_toggled', (data: unknown) => {
+      const msg = data as CardsToggledMessage;
+      this.cardsEnabled.set(msg.enabled);
+      this.addEntry({
+        id: this.nextId(),
+        type: 'cards_toggled',
+        nickname: msg.byNickname,
+        timestamp: msg.timestamp,
+        isSelf: msg.byNickname === this.myNickname(),
+        enabled: msg.enabled
+      });
+    }));
+
     this.cleanupFns.push(this.ws.on('user_list', (data: unknown) => {
       const msg = data as UserListMessage;
       this.connectedUsers.set(msg.users);
@@ -807,6 +854,10 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected doReshuffle(): void {
     this.ws.send({ type: 'reshuffle_deck' });
+  }
+
+  protected doToggleCards(): void {
+    this.ws.send({ type: 'toggle_cards' });
   }
 
   protected decDice(): void {
@@ -868,6 +919,9 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       case 'user_kicked': return `${entry.nickname} fue expulsado por ${entry.byNickname}`;
       case 'admin_changed': return `${entry.newAdminNickname} es ahora el administrador`;
       case 'deck_reshuffled': return `${entry.nickname} ha reiniciado la baraja (50 cartas)`;
+      case 'cards_toggled': return entry.enabled
+        ? `${entry.nickname} activó las cartas`
+        : `${entry.nickname} desactivó las cartas`;
       case 'pool_updated': {
         const d = entry.delta ?? 0;
         if (d > 0) return `${entry.nickname} aumentó la reserva a ${entry.poolValue}`;

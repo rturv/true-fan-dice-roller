@@ -71,6 +71,7 @@ public class RoomWebSocket {
                 case "roll_dice" -> handleRollDice(session, msg);
                 case "draw_card" -> handleDrawCard(session, msg);
                 case "send_message" -> handleSendMessage(session, msg);
+                case "toggle_cards" -> handleToggleCards(session, msg);
                 case "pool_delta" -> handlePoolDelta(session, msg);
                 case "pool_set" -> handlePoolSet(session, msg);
                 case "reshuffle_deck" -> handleReshuffleDeck(session, msg);
@@ -113,6 +114,7 @@ public class RoomWebSocket {
         response.put("isAdmin", true);
         response.put("deckRemaining", result.deckRemaining);
         response.put("poolValue", result.poolValue);
+        response.put("cardsEnabled", result.cardsEnabled);
 
         ArrayNode usersArray = response.putArray("users");
         for (String u : result.users) {
@@ -152,6 +154,7 @@ public class RoomWebSocket {
         response.put("isAdmin", result.isAdmin);
         response.put("deckRemaining", result.deckRemaining);
         response.put("poolValue", result.poolValue);
+        response.put("cardsEnabled", result.cardsEnabled);
 
         ArrayNode usersArray = response.putArray("users");
         for (String u : result.users) {
@@ -196,6 +199,7 @@ public class RoomWebSocket {
         response.put("isAdmin", result.isAdmin);
         response.put("deckRemaining", result.deckRemaining);
         response.put("poolValue", result.poolValue);
+        response.put("cardsEnabled", result.cardsEnabled);
 
         ArrayNode usersArray = response.putArray("users");
         for (String u : result.users) {
@@ -261,6 +265,25 @@ public class RoomWebSocket {
         response.put("type", "text_message");
         response.put("nickname", result.nickname);
         response.put("text", result.text);
+        response.put("timestamp", result.timestamp);
+
+        broadcastToRoom(getRoomCode(session), response.toString(), null);
+    }
+
+    private void handleToggleCards(Session session, JsonNode msg) {
+        RoomUser user = validateSession(session);
+        if (user == null) return;
+
+        RoomService.ToggleCardsResult result = roomService.toggleCards(user);
+        if (result == null) {
+            sendError(session, "Only the admin can toggle cards");
+            return;
+        }
+
+        ObjectNode response = objectMapper.createObjectNode();
+        response.put("type", "cards_toggled");
+        response.put("enabled", result.enabled);
+        response.put("byNickname", result.byNickname);
         response.put("timestamp", result.timestamp);
 
         broadcastToRoom(getRoomCode(session), response.toString(), null);

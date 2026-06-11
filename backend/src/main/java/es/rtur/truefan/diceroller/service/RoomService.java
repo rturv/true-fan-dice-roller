@@ -84,6 +84,7 @@ public class RoomService {
         result.users = users;
         result.deckRemaining = deck.size();
         result.poolValue = room.poolValue;
+        result.cardsEnabled = room.cardsEnabled;
         return result;
     }
 
@@ -126,6 +127,7 @@ public class RoomService {
         result.users = users;
         result.deckRemaining = deck.size();
         result.poolValue = room.poolValue;
+        result.cardsEnabled = room.cardsEnabled;
         return result;
     }
 
@@ -164,6 +166,7 @@ public class RoomService {
         result.users = users;
         result.deckRemaining = deck.size();
         result.poolValue = room.poolValue;
+        result.cardsEnabled = room.cardsEnabled;
         return result;
     }
 
@@ -342,6 +345,31 @@ public class RoomService {
     }
 
     @Transactional
+    public ToggleCardsResult toggleCards(RoomUser user) {
+        if (!user.nickname.equals(user.room.adminNickname)) {
+            return null;
+        }
+        Room room = user.room;
+        room.cardsEnabled = !room.cardsEnabled;
+        entityManager.merge(room);
+
+        String content = "{\"action\":\"toggle_cards\",\"enabled\":" + room.cardsEnabled + "}";
+        ChatEntry entry = new ChatEntry();
+        entry.room = room;
+        entry.type = EntryType.SYSTEM;
+        entry.nickname = user.nickname;
+        entry.content = content;
+        entry.timestamp = Instant.now();
+        entityManager.persist(entry);
+
+        ToggleCardsResult result = new ToggleCardsResult();
+        result.enabled = room.cardsEnabled;
+        result.byNickname = user.nickname;
+        result.timestamp = entry.timestamp.toString();
+        return result;
+    }
+
+    @Transactional
     public boolean kickUser(RoomUser admin, String targetNickname) {
         if (!admin.nickname.equals(admin.room.adminNickname)) {
             return false;
@@ -478,6 +506,7 @@ public class RoomService {
         public List<String> users;
         public int deckRemaining;
         public int poolValue;
+        public boolean cardsEnabled;
 
         static JoinResult error(String msg) {
             JoinResult r = new JoinResult();
@@ -497,6 +526,7 @@ public class RoomService {
         public List<String> users;
         public int deckRemaining;
         public int poolValue;
+        public boolean cardsEnabled;
 
         static ReconnectResult error(String msg) {
             ReconnectResult r = new ReconnectResult();
@@ -535,6 +565,12 @@ public class RoomService {
     public static class PoolResult {
         public int value;
         public int delta;
+        public String byNickname;
+        public String timestamp;
+    }
+
+    public static class ToggleCardsResult {
+        public boolean enabled;
         public String byNickname;
         public String timestamp;
     }
