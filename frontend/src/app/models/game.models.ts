@@ -43,6 +43,7 @@ export interface JoinedMessage extends WsMessage {
   sessionToken: string;
   isAdmin: boolean;
   deckRemaining: number;
+  poolValue: number;
   users: string[];
   history: HistoryEntry[];
 }
@@ -89,6 +90,13 @@ export interface AdminChangedMessage extends WsMessage {
   newAdminNickname: string;
 }
 
+export interface PoolUpdatedMessage extends WsMessage {
+  value: number;
+  delta: number;
+  byNickname: string;
+  timestamp: string;
+}
+
 export interface DeckReshuffledMessage extends WsMessage {
   byNickname: string;
   remaining: number;
@@ -101,7 +109,7 @@ export interface UserListMessage extends WsMessage {
 
 export interface ChatDisplayEntry {
   id: string;
-  type: 'dice_roll' | 'card_draw' | 'text_message' | 'system' | 'user_joined' | 'user_left' | 'user_kicked' | 'admin_changed' | 'deck_reshuffled';
+  type: 'dice_roll' | 'card_draw' | 'text_message' | 'system' | 'user_joined' | 'user_left' | 'user_kicked' | 'admin_changed' | 'deck_reshuffled' | 'pool_updated';
   nickname: string;
   timestamp: string;
   isSelf: boolean;
@@ -113,4 +121,6 @@ export interface ChatDisplayEntry {
   reason?: string;
   byNickname?: string;
   newAdminNickname?: string;
+  poolValue?: number;
+  delta?: number;
 }

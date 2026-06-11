@@ -71,6 +71,8 @@ public class RoomWebSocket {
                 case "roll_dice" -> handleRollDice(session, msg);
                 case "draw_card" -> handleDrawCard(session, msg);
                 case "send_message" -> handleSendMessage(session, msg);
+                case "pool_delta" -> handlePoolDelta(session, msg);
+                case "pool_set" -> handlePoolSet(session, msg);
                 case "reshuffle_deck" -> handleReshuffleDeck(session, msg);
                 case "kick_user" -> handleKickUser(session, msg);
                 case "ping" -> {
@@ -110,6 +112,7 @@ public class RoomWebSocket {
         response.put("sessionToken", result.user.sessionToken);
         response.put("isAdmin", true);
         response.put("deckRemaining", result.deckRemaining);
+        response.put("poolValue", result.poolValue);
 
         ArrayNode usersArray = response.putArray("users");
         for (String u : result.users) {
@@ -148,6 +151,7 @@ public class RoomWebSocket {
         response.put("sessionToken", result.user.sessionToken);
         response.put("isAdmin", result.isAdmin);
         response.put("deckRemaining", result.deckRemaining);
+        response.put("poolValue", result.poolValue);
 
         ArrayNode usersArray = response.putArray("users");
         for (String u : result.users) {
@@ -191,6 +195,7 @@ public class RoomWebSocket {
         response.put("sessionToken", sessionToken);
         response.put("isAdmin", result.isAdmin);
         response.put("deckRemaining", result.deckRemaining);
+        response.put("poolValue", result.poolValue);
 
         ArrayNode usersArray = response.putArray("users");
         for (String u : result.users) {
@@ -256,6 +261,49 @@ public class RoomWebSocket {
         response.put("type", "text_message");
         response.put("nickname", result.nickname);
         response.put("text", result.text);
+        response.put("timestamp", result.timestamp);
+
+        broadcastToRoom(getRoomCode(session), response.toString(), null);
+    }
+
+    private void handlePoolDelta(Session session, JsonNode msg) {
+        RoomUser user = validateSession(session);
+        if (user == null) return;
+
+        int delta = msg.has("delta") ? msg.get("delta").asInt(0) : 0;
+        if (delta == 0) return;
+
+        RoomService.PoolResult result = roomService.poolDelta(user, delta);
+
+        ObjectNode response = objectMapper.createObjectNode();
+        response.put("type", "pool_updated");
+        response.put("value", result.value);
+        response.put("delta", result.delta);
+        response.put("byNickname", result.byNickname);
+        response.put("timestamp", result.timestamp);
+
+        broadcastToRoom(getRoomCode(session), response.toString(), null);
+    }
+
+    private void handlePoolSet(Session session, JsonNode msg) {
+        RoomUser user = validateSession(session);
+        if (user == null) return;
+
+        if (!user.nickname.equals(user.room.adminNickname)) {
+            sendError(session, "Only the admin can set the pool value");
+            return;
+        }
+
+        int value = msg.has("value") ? msg.get("value").asInt(-1) : -1;
+        if (value < 0) return;
+
+        RoomService.PoolResult result = roomService.poolSet(user, value);
+
+        ObjectNode response = objectMapper.createObjectNode();
+        response.put("type", "pool_updated");
+        response.put("value", result.value);
+        response.put("delta", result.delta);
+        response.put("byNickname", result.byNickname);
         response.put("timestamp", result.timestamp);
 
         broadcastToRoom(getRoomCode(session), response.toString(), null);

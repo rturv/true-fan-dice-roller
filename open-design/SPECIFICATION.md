@@ -131,6 +131,20 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 | FR10.5 | `Flecha arriba/abajo`: ajustar modificador +/- 1. |
 | FR10.6 | `+` / `-`: ajustar cantidad de dados +/- 1. |
 
+### FR11 — Pool de Reserva
+
+| ID | Requisito |
+|----|----------|
+| FR11.1 | La sala tiene un contador de reserva entero ≥ 0, compartido por todos los usuarios. |
+| FR11.2 | El pool se muestra en la **barra de controles inferior**, a la izquierda del contador de dados, como un bloque fijo con etiqueta "Pool" y el valor en grande. |
+| FR11.3 | Valor inicial: **0** al crear la sala. Sin límite superior. El valor persiste en base de datos. |
+| FR11.4 | **Cualquier usuario** puede incrementar/decrementar el pool con botones `+` y `−` de 1 en 1. El botón `−` se deshabilita cuando el valor es 0. |
+| FR11.5 | **Solo el admin** ve un icono de lápiz (✎) junto al número del pool. Al pulsarlo se abre un pequeño popup modal donde puede teclear un valor exacto y confirmar con "Set". |
+| FR11.6 | El popup de admin valida que el valor introducido sea ≥ 0. Si no lo es, muestra error y no cierra. |
+| FR11.7 | Cada cambio en el pool genera una entrada de sistema en el chat log: "X aumentó el pool a Y" / "X redujo el pool a Y" / "X fijó el pool a Y". |
+| FR11.8 | Visualmente: pool en 0 se muestra en gris apagado (--meta). Pool > 0 se muestra en color de acento (--accent). |
+| FR11.9 | Atajo de teclado: `[` (corchete izquierdo) decrementa el pool, `]` (corchete derecho) lo incrementa. Solo si no hay un input enfocado. |
+
 ---
 
 ## 5. Requisitos No Funcionales
@@ -157,7 +171,8 @@ Room
 ├── code: String(7) (único, índice)
 ├── createdAt: Instant
 ├── deckState: String (JSON con estado del mazo)
-└── adminNickname: String
+├── adminNickname: String
+└── poolValue: int (default 0)
 
 RoomUser
 ├── id: Long (PK, autogenerado)
@@ -191,6 +206,8 @@ Formato de mensajes: **JSON**.
 | `draw_card` | `{ "type": "draw_card" }` |
 | `send_message` | `{ "type": "send_message", "text": "¡Hola!" }` |
 | `reshuffle_deck` | `{ "type": "reshuffle_deck" }` |
+| `pool_delta` | `{ "type": "pool_delta", "delta": 1 }` |
+| `pool_set` | `{ "type": "pool_set", "value": 10 }` |
 | `kick_user` | `{ "type": "kick_user", "targetNickname": "Troll" }` |
 | `reconnect` | `{ "type": "reconnect", "roomCode": "ABC1234", "nickname": "Mago", "sessionToken": "..." }` |
 
@@ -198,7 +215,7 @@ Formato de mensajes: **JSON**.
 
 | Tipo | Payload |
 |------|---------|
-| `joined` | `{ "type": "joined", "roomCode": "...", "users": [...], "history": [...], "deckRemaining": 50, "isAdmin": true/false, "sessionToken": "..." }` |
+| `joined` | `{ "type": "joined", "roomCode": "...", "users": [...], "history": [...], "deckRemaining": 50, "poolValue": 0, "isAdmin": true/false, "sessionToken": "..." }` |
 | `error` | `{ "type": "error", "message": "Nickname already taken" }` |
 | `dice_roll` | `{ "type": "dice_roll", "nickname": "Mago", "result": { "values": [6,3,5,2], "initialCount": 3, "diceTotal": 16, "modifier": 2, "total": 18, "explosions": 1 }, "timestamp": "..." }` |
 | `card_draw` | `{ "type": "card_draw", "nickname": "Mago", "card": { "kind": "card", "suit": "oros", "suitName": "Oros", "rank": 7, "label": "7 de Oros" }, "remaining": 42, "reshuffledNext": false, "timestamp": "..." }` |
@@ -208,6 +225,7 @@ Formato de mensajes: **JSON**.
 | `user_kicked` | `{ "type": "user_kicked", "nickname": "Troll", "byNickname": "Admin" }` |
 | `admin_changed` | `{ "type": "admin_changed", "newAdminNickname": "Mago" }` |
 | `deck_reshuffled` | `{ "type": "deck_reshuffled", "byNickname": "Admin", "remaining": 50 }` |
+| `pool_updated` | `{ "type": "pool_updated", "value": 10, "delta": 1, "byNickname": "Mago" }` |
 | `user_list` | `{ "type": "user_list", "users": ["Admin", "Mago", "Elfo"] }` |
 
 ### 7.3 Heartbeat
@@ -235,6 +253,9 @@ El servidor envía un `ping` cada 30 segundos. El cliente debe responder con `po
 15. Ambos ven la carta renderizada con el diseño español.
 16. Siguen jugando, enviando mensajes de texto, tirando dados, sacando cartas.
 17. Cuando un usuario cierra el navegador, los demás ven `user_left`. Si vuelve en <15 min, se reconecta.
+18. "Mago" pulsa `+` en el pool → sube a 1. "Elfo" lo ve subir en tiempo real y el chat muestra "Mago aumentó el pool a 1".
+19. "Elfo" pulsa `+` dos veces → el pool sube a 3. Ambos lo ven.
+20. "Mago" (admin) pulsa el lápiz, escribe "10" en el popup, confirma → el pool salta a 10 y el chat muestra "Admin fijó el pool a 10".
 
 ---
 
@@ -330,6 +351,17 @@ El servidor envía un `ping` cada 30 segundos. El cliente debe responder con `po
 - [ ] AC26: Tecla C saca carta.
 - [ ] AC27: Teclas numéricas fijan cantidad de dados.
 - [ ] AC28: Flechas y +/- ajustan modificador y cantidad.
+
+### Pool de Reserva
+- [ ] AC29: El pool se ve en la barra de controles con etiqueta "Pool" y valor 0 al crear sala.
+- [ ] AC30: Cualquier usuario puede pulsar + / − para cambiar el pool de 1 en 1.
+- [ ] AC31: El botón − se deshabilita cuando el pool es 0.
+- [ ] AC32: Solo el admin ve el icono de lápiz junto al pool.
+- [ ] AC33: El admin puede abrir el popup con el lápiz, teclear un valor ≥ 0, y confirmar con "Set".
+- [ ] AC34: Si el admin introduce un valor < 0, el popup muestra error y no se cierra.
+- [ ] AC35: Cada cambio en el pool se refleja en el chat log de todos los jugadores.
+- [ ] AC36: El pool > 0 se muestra en color de acento; el pool = 0 en gris apagado.
+- [ ] AC37: Los atajos `[` y `]` decrementan/incrementan el pool respectivamente.
 
 ---
 

@@ -7,7 +7,7 @@ import type {
   JoinedMessage, DiceRollMessage, CardDrawMessage,
   TextMessage, UserJoinedMessage, UserLeftMessage,
   UserKickedMessage, AdminChangedMessage, DeckReshuffledMessage,
-  UserListMessage, HistoryEntry, DrawResult
+  UserListMessage, HistoryEntry, DrawResult, PoolUpdatedMessage
 } from '../../models/game.models';
 
 @Component({
@@ -111,7 +111,7 @@ import type {
                     @if (entry.card!.kind === 'joker') {
                       <span class="card-corner-mark">☆</span>
                     } @else {
-                      <span class="card-corner-mark"><img [src]="suitIcon(entry.card!.suit!)" alt=""></span>
+                      <span class="card-corner-mark"><img [src]="suitIcon(entry.card!.suit!)" alt="" /></span>
                     }
                   </div>
                   <div class="card-corner bottom">
@@ -119,14 +119,14 @@ import type {
                     @if (entry.card!.kind === 'joker') {
                       <span class="card-corner-mark">☆</span>
                     } @else {
-                      <span class="card-corner-mark"><img [src]="suitIcon(entry.card!.suit!)" alt=""></span>
+                      <span class="card-corner-mark"><img [src]="suitIcon(entry.card!.suit!)" alt="" /></span>
                     }
                   </div>
                   <div class="card-center">
                     @if (entry.card!.kind === 'joker') {
                       <span class="card-suit-glyph">🃏</span>
                     } @else {
-                      <span class="card-suit-glyph"><img [src]="suitIcon(entry.card!.suit!)" alt=""></span>
+                      <span class="card-suit-glyph"><img [src]="suitIcon(entry.card!.suit!)" alt="" /></span>
                     }
                     <span class="card-suit-label">{{ entry.card!.kind === 'joker' ? 'Comodín' : entry.card!.suitName }}</span>
                   </div>
@@ -149,7 +149,7 @@ import type {
               </div>
               <div class="msg-text">{{ entry.text }}</div>
             </div>
-          } @else if (entry.type === 'system' || entry.type === 'user_joined' || entry.type === 'user_left' || entry.type === 'user_kicked' || entry.type === 'admin_changed' || entry.type === 'deck_reshuffled') {
+           } @else if (entry.type === 'system' || entry.type === 'user_joined' || entry.type === 'user_left' || entry.type === 'user_kicked' || entry.type === 'admin_changed' || entry.type === 'deck_reshuffled' || entry.type === 'pool_updated') {
             <div class="entry-connector">{{ systemMessage(entry) }}</div>
           }
         }
@@ -182,7 +182,36 @@ import type {
           <button class="admin-btn" (click)="doReshuffle()" title="Reiniciar Baraja">⟳</button>
         }
       </div>
+      <div class="controls-inner pool-row">
+        <div class="pool-control">
+          <span class="pool-label">Pool</span>
+          <div class="pool-value-wrap">
+            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0" aria-label="Decrement pool">−</button>
+            <span class="pool-value" [class.pool-empty]="poolValue() === 0" [class.pool-filled]="poolValue() > 0">{{ poolValue() }}</span>
+            <button class="pool-btn" (click)="doPoolDelta(1)" aria-label="Increment pool">+</button>
+            @if (isAdmin()) {
+              <button class="pool-edit-btn" (click)="openPoolModal()" title="Set pool value">✎</button>
+            }
+          </div>
+        </div>
+      </div>
     </footer>
+
+    @if (poolModalOpen()) {
+      <div class="pool-modal-overlay" (click)="closePoolModal()">
+        <div class="pool-modal" (click)="$event.stopPropagation()">
+          <h3 class="pool-modal-title">Set Pool Value</h3>
+          <input class="pool-modal-input" type="number" [value]="poolModalInput()" (input)="poolModalInput.set($any($event.target).value)" min="0" placeholder="0" autofocus (keydown.enter)="doPoolSet()" />
+          @if (poolModalError()) {
+            <p class="pool-modal-error">{{ poolModalError() }}</p>
+          }
+          <div class="pool-modal-actions">
+            <button class="pool-modal-btn cancel" (click)="closePoolModal()">Cancel</button>
+            <button class="pool-modal-btn set" (click)="doPoolSet()">Set</button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     :host { display: flex; flex-direction: column; height: 100%; }
@@ -385,6 +414,70 @@ import type {
       transition: background var(--motion-fast);
     }
     .admin-btn:hover { background: color-mix(in oklab, var(--surface), var(--warn) 10%); }
+
+    /* Pool controls */
+    .pool-row { border-top: 1px solid var(--border-soft); padding-top: var(--space-2); margin-top: var(--space-1); }
+    .pool-control { display: flex; align-items: center; gap: var(--space-2); }
+    .pool-label { font-size: 11px; color: var(--meta); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; min-width: 28px; }
+    .pool-value-wrap { display: flex; align-items: center; gap: 4px; }
+    .pool-btn {
+      width: 28px; height: 28px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-soft); background: var(--surface);
+      color: var(--fg); font-size: 16px; font-weight: 600;
+      display: grid; place-items: center; cursor: pointer;
+      transition: background var(--motion-fast);
+    }
+    .pool-btn:hover { background: color-mix(in oklab, var(--surface), var(--accent) 6%); }
+    .pool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .pool-value {
+      font-family: var(--font-display); font-size: 22px; font-weight: 700;
+      min-width: 36px; text-align: center; line-height: 1;
+    }
+    .pool-value.pool-empty { color: var(--meta); }
+    .pool-value.pool-filled { color: var(--accent); }
+    .pool-edit-btn {
+      width: 24px; height: 24px; border-radius: var(--radius-sm);
+      border: none; background: transparent; color: var(--meta);
+      font-size: 14px; display: grid; place-items: center; cursor: pointer;
+      transition: color var(--motion-fast);
+    }
+    .pool-edit-btn:hover { color: var(--accent); }
+
+    /* Pool modal */
+    .pool-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .pool-modal {
+      background: var(--surface); border-radius: var(--radius-lg);
+      padding: 24px; border: 1px solid var(--border);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+      min-width: 240px;
+    }
+    .pool-modal-title {
+      font-family: var(--font-display); font-size: 20px; font-weight: 700;
+      margin: 0 0 16px; color: var(--fg);
+    }
+    .pool-modal-input {
+      width: 100%; height: 44px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg);
+      color: var(--fg); font-size: 24px; font-weight: 700; text-align: center;
+      padding: 0 12px; outline: none;
+      font-family: var(--font-display);
+    }
+    .pool-modal-input:focus { border-color: var(--accent); }
+    .pool-modal-error { font-size: 12px; color: var(--danger); margin: 8px 0 0; text-align: center; }
+    .pool-modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .pool-modal-btn {
+      flex: 1; height: 40px; border-radius: 8px; border: none;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: opacity var(--motion-fast);
+    }
+    .pool-modal-btn.cancel { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
+    .pool-modal-btn.set { background: var(--accent); color: var(--accent-on); }
+    .pool-modal-btn:hover { opacity: 0.85; }
+
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .card-draw-wrap { display: flex; align-items: flex-start; gap: var(--space-4); flex-wrap: wrap; }
@@ -456,10 +549,14 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected isAdmin = signal(false);
   protected isRolling = signal(false);
   protected isNewRoom = signal(false);
+  private sessionToken = '';
 
   protected diceCount = signal(2);
   protected modifier = signal(0);
   protected wsConnected = signal(false);
+  protected poolValue = signal(0);
+  protected poolModalOpen = signal(false);
+  protected poolModalInput = signal('');
 
   protected entries = signal<ChatDisplayEntry[]>([]);
   protected connectedUsers = signal<string[]>([]);
@@ -513,9 +610,11 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
     this.cleanupFns.push(this.ws.on('joined', (data: unknown) => {
       const msg = data as JoinedMessage;
+      this.sessionToken = msg.sessionToken;
       this.wsConnected.set(true);
       this.isAdmin.set(msg.isAdmin);
       this.connectedUsers.set(msg.users);
+      this.poolValue.set(msg.poolValue ?? 0);
 
       if (msg.roomCode && msg.roomCode !== this.roomCode()) {
         this.roomCode.set(msg.roomCode);
@@ -645,6 +744,20 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       });
     }));
 
+    this.cleanupFns.push(this.ws.on('pool_updated', (data: unknown) => {
+      const msg = data as PoolUpdatedMessage;
+      this.poolValue.set(msg.value);
+      this.addEntry({
+        id: this.nextId(),
+        type: 'pool_updated',
+        nickname: msg.byNickname,
+        timestamp: msg.timestamp,
+        isSelf: msg.byNickname === this.myNickname(),
+        poolValue: msg.value,
+        delta: msg.delta
+      });
+    }));
+
     this.cleanupFns.push(this.ws.on('user_list', (data: unknown) => {
       const msg = data as UserListMessage;
       this.connectedUsers.set(msg.users);
@@ -663,13 +776,12 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       }
     }));
 
-    setTimeout(() => {
-      if (this.isNewRoom()) {
-        this.ws.send({ type: 'create_room', nickname: this.myNickname() });
-      } else {
-        this.ws.send({ type: 'join', roomCode: this.roomCode(), nickname: this.myNickname() });
-      }
-    }, 500);
+    const msg = this.sessionToken
+      ? { type: 'reconnect', roomCode: this.roomCode(), nickname: this.myNickname(), sessionToken: this.sessionToken }
+      : this.isNewRoom()
+        ? { type: 'create_room', nickname: this.myNickname() }
+        : { type: 'join', roomCode: this.roomCode(), nickname: this.myNickname() };
+    this.ws.setAuthMessage(msg);
   }
 
   protected doRoll(): void {
@@ -704,8 +816,42 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     else this.modifier.set(0);
   }
 
+  protected poolModalError = signal('');
+
+  protected doPoolDelta(delta: number): void {
+    const newVal = this.poolValue() + delta;
+    if (newVal < 0) return;
+    this.ws.send({ type: 'pool_delta', delta });
+  }
+
+  protected openPoolModal(): void {
+    this.poolModalInput.set(String(this.poolValue()));
+    this.poolModalError.set('');
+    this.poolModalOpen.set(true);
+  }
+
+  protected closePoolModal(): void {
+    this.poolModalOpen.set(false);
+    this.poolModalError.set('');
+  }
+
+  protected doPoolSet(): void {
+    const val = parseInt(this.poolModalInput(), 10);
+    if (isNaN(val) || val < 0) {
+      this.poolModalError.set('Value must be >= 0');
+      return;
+    }
+    this.ws.send({ type: 'pool_set', value: val });
+    this.closePoolModal();
+  }
+
   protected suitIcon(suit: string): string {
     return `assets/suits/${suit}.svg`;
+  }
+
+  protected suitSymbol(suit: string): string {
+    const symbols: Record<string, string> = { oros: '◎', copas: '◠', espadas: '✦', bastos: '✣' };
+    return symbols[suit] || '?';
   }
 
   protected systemMessage(entry: ChatDisplayEntry): string {
@@ -715,6 +861,12 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       case 'user_kicked': return `${entry.nickname} fue expulsado por ${entry.byNickname}`;
       case 'admin_changed': return `${entry.newAdminNickname} es ahora el administrador`;
       case 'deck_reshuffled': return `${entry.nickname} ha reiniciado la baraja (50 cartas)`;
+      case 'pool_updated': {
+        const d = entry.delta ?? 0;
+        if (d > 0) return `${entry.nickname} aumentó el pool a ${entry.poolValue}`;
+        if (d < 0) return `${entry.nickname} redujo el pool a ${entry.poolValue}`;
+        return `${entry.nickname} fijó el pool a ${entry.poolValue}`;
+      }
       case 'system': return entry.text || '';
       default: return '';
     }

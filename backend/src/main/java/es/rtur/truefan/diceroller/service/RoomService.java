@@ -83,6 +83,7 @@ public class RoomService {
         result.history = history;
         result.users = users;
         result.deckRemaining = deck.size();
+        result.poolValue = room.poolValue;
         return result;
     }
 
@@ -124,6 +125,7 @@ public class RoomService {
         result.history = history;
         result.users = users;
         result.deckRemaining = deck.size();
+        result.poolValue = room.poolValue;
         return result;
     }
 
@@ -161,6 +163,7 @@ public class RoomService {
         result.history = history;
         result.users = users;
         result.deckRemaining = deck.size();
+        result.poolValue = room.poolValue;
         return result;
     }
 
@@ -257,6 +260,56 @@ public class RoomService {
         TextMessageResult result = new TextMessageResult();
         result.nickname = user.nickname;
         result.text = text;
+        result.timestamp = entry.timestamp.toString();
+        return result;
+    }
+
+    @Transactional
+    public PoolResult poolDelta(RoomUser user, int delta) {
+        Room room = user.room;
+        int newValue = room.poolValue + delta;
+        if (newValue < 0) newValue = 0;
+        room.poolValue = newValue;
+        entityManager.merge(room);
+
+        String content = "{\"action\":\"pool_delta\",\"value\":" + newValue + ",\"delta\":" + delta + "}";
+        ChatEntry entry = new ChatEntry();
+        entry.room = room;
+        entry.type = EntryType.SYSTEM;
+        entry.nickname = user.nickname;
+        entry.content = content;
+        entry.timestamp = Instant.now();
+        entityManager.persist(entry);
+
+        PoolResult result = new PoolResult();
+        result.value = newValue;
+        result.delta = delta;
+        result.byNickname = user.nickname;
+        result.timestamp = entry.timestamp.toString();
+        return result;
+    }
+
+    @Transactional
+    public PoolResult poolSet(RoomUser user, int value) {
+        Room room = user.room;
+        int clamped = Math.max(0, value);
+        int delta = clamped - room.poolValue;
+        room.poolValue = clamped;
+        entityManager.merge(room);
+
+        String content = "{\"action\":\"pool_set\",\"value\":" + clamped + ",\"delta\":" + delta + "}";
+        ChatEntry entry = new ChatEntry();
+        entry.room = room;
+        entry.type = EntryType.SYSTEM;
+        entry.nickname = user.nickname;
+        entry.content = content;
+        entry.timestamp = Instant.now();
+        entityManager.persist(entry);
+
+        PoolResult result = new PoolResult();
+        result.value = clamped;
+        result.delta = delta;
+        result.byNickname = user.nickname;
         result.timestamp = entry.timestamp.toString();
         return result;
     }
@@ -424,6 +477,7 @@ public class RoomService {
         public List<ChatEntry> history;
         public List<String> users;
         public int deckRemaining;
+        public int poolValue;
 
         static JoinResult error(String msg) {
             JoinResult r = new JoinResult();
@@ -442,6 +496,7 @@ public class RoomService {
         public List<ChatEntry> history;
         public List<String> users;
         public int deckRemaining;
+        public int poolValue;
 
         static ReconnectResult error(String msg) {
             ReconnectResult r = new ReconnectResult();
@@ -474,6 +529,13 @@ public class RoomService {
     public static class ReshuffleResult {
         public String byNickname;
         public int remaining;
+        public String timestamp;
+    }
+
+    public static class PoolResult {
+        public int value;
+        public int delta;
+        public String byNickname;
         public String timestamp;
     }
 }

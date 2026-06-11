@@ -10,12 +10,13 @@ export class WebsocketService {
   private handlers = new Map<string, Set<MessageHandler>>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingMessages: string[] = [];
+  private authMessage: string | null = null;
 
   isConnected = signal(false);
   lastPong = Date.now();
 
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
+  private maxReconnectAttempts = 60;
   private reconnectDelay = 2000;
 
   private url = '';
@@ -24,6 +25,16 @@ export class WebsocketService {
     this.url = url;
     this.reconnectAttempts = 0;
     this.doConnect();
+  }
+
+  /** Store the authentication message and send it immediately.
+   *  It will also be re-sent automatically whenever the WebSocket reconnects. */
+  setAuthMessage(msg: unknown): void {
+    const str = typeof msg === 'string' ? msg : JSON.stringify(msg);
+    this.authMessage = str;
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(str);
+    }
   }
 
   private doConnect(): void {
@@ -38,6 +49,11 @@ export class WebsocketService {
       this.isConnected.set(true);
       this.reconnectAttempts = 0;
       this.lastPong = Date.now();
+
+      // Always re-send auth message on (re)connect
+      if (this.authMessage) {
+        this.ws!.send(this.authMessage);
+      }
 
       for (const msg of this.pendingMessages) {
         this.ws?.send(msg);

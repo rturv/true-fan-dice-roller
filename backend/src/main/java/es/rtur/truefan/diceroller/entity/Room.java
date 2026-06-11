@@ -27,4 +27,7 @@ public class Room {
 
     @Column(nullable = false)
     public String adminNickname;
+
+    @Column(nullable = false)
+    public int poolValue;
 }
