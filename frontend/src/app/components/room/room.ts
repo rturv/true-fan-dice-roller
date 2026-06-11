@@ -19,7 +19,7 @@ import type {
     <header class="app-header">
       <div class="app-header-inner">
         <span class="app-logo">True Fan Dice Roller</span>
-        <span class="room-code">{{ roomCode() }}</span>
+        <span class="room-code" (click)="copyRoomCode()" title="Click para copiar">{{ copied() ? 'Copiado!' : roomCode() }}</span>
         <div class="header-controls">
           <div class="style-picker">
             <label>Theme</label>
@@ -81,7 +81,7 @@ import type {
                   <span class="die" [class.pip-6]="val === 6" [class.added]="$index >= entry.result!.initialCount">{{ val }}</span>
                 }
                 @if (entry.result!.explosions > 0) {
-                  <span class="roll-explosion">{{ entry.result!.explosions }} exploded</span>
+                  <span class="roll-explosion">EXPLOTAN {{ entry.result!.explosions }}</span>
                 }
               </div>
               <div class="roll-summary">
@@ -158,6 +158,17 @@ import type {
 
     <footer class="controls-bar">
       <div class="controls-inner">
+        <div class="pool-control">
+          <span class="pool-label">Reserva</span>
+          <div class="pool-value-wrap">
+            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0" aria-label="Decrement pool">−</button>
+            <span class="pool-value" [class.pool-empty]="poolValue() === 0" [class.pool-filled]="poolValue() > 0">{{ poolValue() }}</span>
+            <button class="pool-btn" (click)="doPoolDelta(1)" aria-label="Increment pool">+</button>
+            @if (isAdmin()) {
+              <button class="pool-edit-btn" (click)="openPoolModal()" title="Set pool value">✎</button>
+            }
+          </div>
+        </div>
         <div class="dice-counter">
           <button (click)="decDice()" aria-label="Fewer dice">−</button>
           <div class="dice-count-display">
@@ -176,38 +187,25 @@ import type {
         </button>
         <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected()">
           <span class="draw-card-icon"></span>
-          Sacar Carta!
+          Carta!
         </button>
         @if (isAdmin()) {
           <button class="admin-btn" (click)="doReshuffle()" title="Reiniciar Baraja">⟳</button>
         }
-      </div>
-      <div class="controls-inner pool-row">
-        <div class="pool-control">
-          <span class="pool-label">Pool</span>
-          <div class="pool-value-wrap">
-            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0" aria-label="Decrement pool">−</button>
-            <span class="pool-value" [class.pool-empty]="poolValue() === 0" [class.pool-filled]="poolValue() > 0">{{ poolValue() }}</span>
-            <button class="pool-btn" (click)="doPoolDelta(1)" aria-label="Increment pool">+</button>
-            @if (isAdmin()) {
-              <button class="pool-edit-btn" (click)="openPoolModal()" title="Set pool value">✎</button>
-            }
-          </div>
-        </div>
       </div>
     </footer>
 
     @if (poolModalOpen()) {
       <div class="pool-modal-overlay" (click)="closePoolModal()">
         <div class="pool-modal" (click)="$event.stopPropagation()">
-          <h3 class="pool-modal-title">Set Pool Value</h3>
+          <h3 class="pool-modal-title">Fijar Reserva</h3>
           <input class="pool-modal-input" type="number" [value]="poolModalInput()" (input)="poolModalInput.set($any($event.target).value)" min="0" placeholder="0" autofocus (keydown.enter)="doPoolSet()" />
           @if (poolModalError()) {
             <p class="pool-modal-error">{{ poolModalError() }}</p>
           }
           <div class="pool-modal-actions">
-            <button class="pool-modal-btn cancel" (click)="closePoolModal()">Cancel</button>
-            <button class="pool-modal-btn set" (click)="doPoolSet()">Set</button>
+            <button class="pool-modal-btn cancel" (click)="closePoolModal()">Cancelar</button>
+            <button class="pool-modal-btn set" (click)="doPoolSet()">Fijar</button>
           </div>
         </div>
       </div>
@@ -239,8 +237,10 @@ import type {
     .room-code {
       font-family: var(--font-mono); font-size: 14px; color: var(--accent-on);
       background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 6px;
-      letter-spacing: 0.15em; font-weight: 600;
+      letter-spacing: 0.15em; font-weight: 600; cursor: pointer;
+      user-select: all; transition: background var(--motion-fast);
     }
+    .room-code:hover { background: rgba(255,255,255,0.28); }
     .header-controls {
       display: flex; align-items: center; gap: var(--space-3);
     }
@@ -416,22 +416,21 @@ import type {
     .admin-btn:hover { background: color-mix(in oklab, var(--surface), var(--warn) 10%); }
 
     /* Pool controls */
-    .pool-row { border-top: 1px solid var(--border-soft); padding-top: var(--space-2); margin-top: var(--space-1); }
     .pool-control { display: flex; align-items: center; gap: var(--space-2); }
-    .pool-label { font-size: 11px; color: var(--meta); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; min-width: 28px; }
-    .pool-value-wrap { display: flex; align-items: center; gap: 4px; }
+    .pool-label { font-size: 11px; color: var(--meta); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+    .pool-value-wrap { display: flex; align-items: center; gap: 2px; }
     .pool-btn {
-      width: 28px; height: 28px; border-radius: var(--radius-sm);
+      width: 26px; height: 26px; border-radius: var(--radius-sm);
       border: 1px solid var(--border-soft); background: var(--surface);
-      color: var(--fg); font-size: 16px; font-weight: 600;
+      color: var(--fg); font-size: 14px; font-weight: 600;
       display: grid; place-items: center; cursor: pointer;
       transition: background var(--motion-fast);
     }
     .pool-btn:hover { background: color-mix(in oklab, var(--surface), var(--accent) 6%); }
     .pool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
     .pool-value {
-      font-family: var(--font-display); font-size: 22px; font-weight: 700;
-      min-width: 36px; text-align: center; line-height: 1;
+      font-family: var(--font-display); font-size: 20px; font-weight: 700;
+      min-width: 28px; text-align: center; line-height: 1;
     }
     .pool-value.pool-empty { color: var(--meta); }
     .pool-value.pool-filled { color: var(--accent); }
@@ -557,6 +556,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected poolValue = signal(0);
   protected poolModalOpen = signal(false);
   protected poolModalInput = signal('');
+  protected copied = signal(false);
 
   protected entries = signal<ChatDisplayEntry[]>([]);
   protected connectedUsers = signal<string[]>([]);
@@ -784,6 +784,13 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     this.ws.setAuthMessage(msg);
   }
 
+  protected copyRoomCode(): void {
+    navigator.clipboard.writeText(this.roomCode()).then(() => {
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 1500);
+    });
+  }
+
   protected doRoll(): void {
     if (this.isRolling()) return;
     this.isRolling.set(true);
@@ -838,7 +845,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected doPoolSet(): void {
     const val = parseInt(this.poolModalInput(), 10);
     if (isNaN(val) || val < 0) {
-      this.poolModalError.set('Value must be >= 0');
+      this.poolModalError.set('El valor debe ser >= 0');
       return;
     }
     this.ws.send({ type: 'pool_set', value: val });
@@ -863,9 +870,9 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       case 'deck_reshuffled': return `${entry.nickname} ha reiniciado la baraja (50 cartas)`;
       case 'pool_updated': {
         const d = entry.delta ?? 0;
-        if (d > 0) return `${entry.nickname} aumentó el pool a ${entry.poolValue}`;
-        if (d < 0) return `${entry.nickname} redujo el pool a ${entry.poolValue}`;
-        return `${entry.nickname} fijó el pool a ${entry.poolValue}`;
+        if (d > 0) return `${entry.nickname} aumentó la reserva a ${entry.poolValue}`;
+        if (d < 0) return `${entry.nickname} redujo la reserva a ${entry.poolValue}`;
+        return `${entry.nickname} fijó la reserva a ${entry.poolValue}`;
       }
       case 'system': return entry.text || '';
       default: return '';
