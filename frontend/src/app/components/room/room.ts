@@ -51,6 +51,7 @@ import type {
             <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
+          <button class="logout-btn" (click)="doLogout()" title="Salir de la sala">✕</button>
         </div>
       </div>
     </header>
@@ -304,6 +305,16 @@ import type {
     .cards-toggle input:checked + .cards-toggle-switch { background: var(--success); }
     .cards-toggle input:checked + .cards-toggle-switch::after { transform: translateX(14px); }
     .cards-toggle:hover { background: rgba(255,255,255,0.18); }
+
+    /* Logout */
+    .logout-btn {
+      width: 40px; height: 40px; border-radius: var(--radius-sm); border: none;
+      background: rgba(255,255,255,0.12); backdrop-filter: blur(8px);
+      color: var(--accent-on); font-size: 18px; cursor: pointer;
+      display: grid; place-items: center;
+      transition: background var(--motion-fast);
+    }
+    .logout-btn:hover { background: rgba(255,255,255,0.2); }
     .icon-sun { display: none; }
     :root[data-theme="dark"] .icon-sun { display: block; }
     :root[data-theme="dark"] .icon-moon { display: none; }
@@ -581,6 +592,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected isRolling = signal(false);
   protected isNewRoom = signal(false);
   private sessionToken = '';
+  private readonly SESSION_KEY = 'diced-session';
 
   protected diceCount = signal(2);
   protected modifier = signal(0);
@@ -620,6 +632,16 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       this.myNickname.set(qp['nick'] || '');
       this.isAdmin.set(qp['admin'] === 'true');
       this.isNewRoom.set(qp['new'] === 'true');
+
+      // Try to restore session from localStorage if available
+      const stored = this.loadSession();
+      if (stored && stored.roomCode === this.roomCode()) {
+        this.sessionToken = stored.sessionToken;
+        this.isAdmin.set(stored.isAdmin);
+        this.myNickname.set(stored.nick);
+        this.isNewRoom.set(false);
+      }
+
       this.connectWebSocket();
     });
   }
@@ -644,6 +666,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     this.cleanupFns.push(this.ws.on('joined', (data: unknown) => {
       const msg = data as JoinedMessage;
       this.sessionToken = msg.sessionToken;
+      this.saveSession(msg.roomCode, this.myNickname(), msg.sessionToken, msg.isAdmin);
       this.wsConnected.set(true);
       this.isAdmin.set(msg.isAdmin);
       this.connectedUsers.set(msg.users);
@@ -668,9 +691,10 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
     this.cleanupFns.push(this.ws.on('error', (data: unknown) => {
       const msg = data as { message?: string };
-      const criticalErrors = ['Room not found', 'Nickname already taken', 'Room is full', 'nickname is required', 'roomCode and nickname are required'];
+      const criticalErrors = ['Room not found', 'Nickname already taken', 'Room is full', 'nickname is required', 'roomCode and nickname are required', 'Invalid'];
       const isCritical = criticalErrors.some(e => msg.message?.includes(e));
       if (isCritical) {
+        this.clearSession();
         alert('Error: ' + (msg.message || 'Unknown error'));
         this.router.navigate(['/']);
       } else {
@@ -858,6 +882,31 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected doToggleCards(): void {
     this.ws.send({ type: 'toggle_cards' });
+  }
+
+  protected doLogout(): void {
+    this.clearSession();
+    this.ws.disconnect();
+    this.router.navigate(['/']);
+  }
+
+  private saveSession(code: string, nick: string, token: string, admin: boolean): void {
+    try {
+      localStorage.setItem(this.SESSION_KEY, JSON.stringify({
+        roomCode: code, nick, sessionToken: token, isAdmin: admin
+      }));
+    } catch {}
+  }
+
+  private loadSession(): { roomCode: string; nick: string; sessionToken: string; isAdmin: boolean } | null {
+    try {
+      const raw = localStorage.getItem(this.SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+
+  private clearSession(): void {
+    try { localStorage.removeItem(this.SESSION_KEY); } catch {}
   }
 
   protected decDice(): void {
