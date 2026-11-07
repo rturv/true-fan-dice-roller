@@ -13,6 +13,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -195,6 +196,64 @@ public class RoomService {
         for (RoomUser user : staleUsers) {
             entityManager.remove(user);
         }
+    }
+
+    /**
+     * Borra las salas sin usuarios conectados cuya última actividad (último
+     * {@code lastSeenAt}, último mensaje o fecha de creación) sea anterior al
+     * umbral indicado. Borra primero chat_entries y room_users para respetar
+     * las claves foráneas.
+     *
+     * @return número de salas eliminadas
+     */
+    @Transactional
+    public int deleteInactiveRooms(long inactivityHours) {
+        Instant cutoff = Instant.now().minus(inactivityHours, ChronoUnit.HOURS);
+
+        List<Room> candidates = entityManager
+            .createQuery(
+                "SELECT r FROM Room r WHERE NOT EXISTS ("
+                    + "SELECT u.id FROM RoomUser u WHERE u.room = r AND u.connected = true)",
+                Room.class)
+            .getResultList();
+
+        int deleted = 0;
+        for (Room room : candidates) {
+            if (getLastActivity(room).isAfter(cutoff)) {
+                continue;
+            }
+
+            entityManager.createQuery("DELETE FROM ChatEntry c WHERE c.room = :room")
+                .setParameter("room", room)
+                .executeUpdate();
+            entityManager.createQuery("DELETE FROM RoomUser u WHERE u.room = :room")
+                .setParameter("room", room)
+                .executeUpdate();
+            entityManager.remove(room);
+            deleted++;
+        }
+        return deleted;
+    }
+
+    private Instant getLastActivity(Room room) {
+        Instant lastSeen = entityManager
+            .createQuery("SELECT MAX(u.lastSeenAt) FROM RoomUser u WHERE u.room = :room", Instant.class)
+            .setParameter("room", room)
+            .getSingleResult();
+
+        Instant lastEntry = entityManager
+            .createQuery("SELECT MAX(c.timestamp) FROM ChatEntry c WHERE c.room = :room", Instant.class)
+            .setParameter("room", room)
+            .getSingleResult();
+
+        Instant lastActivity = room.createdAt;
+        if (lastSeen != null && lastSeen.isAfter(lastActivity)) {
+            lastActivity = lastSeen;
+        }
+        if (lastEntry != null && lastEntry.isAfter(lastActivity)) {
+            lastActivity = lastEntry;
+        }
+        return lastActivity;
     }
 
     @Transactional
