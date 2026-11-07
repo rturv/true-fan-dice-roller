@@ -57,7 +57,35 @@ El frontend arranca en `http://localhost:4200`. Conecta automáticamente al back
 
 ## Despliegue con Docker
 
-### Frontend (Angular + nginx)
+### docker-compose (recomendado)
+
+#### Desarrollo (H2 en memoria)
+
+```bash
+docker compose -f docker-compose.desa.yml up -d
+```
+
+Abrir `http://localhost:4200`. El backend usa H2 en memoria, no necesita base de datos externa.
+
+#### Producción (PostgreSQL externo)
+
+```bash
+export DB_URL=jdbc:postgresql://mi-postgres:5432/diceroller
+export DB_USER=postgres
+export DB_PASSWORD=secreta
+export JWT_SECRET=clave-hmac-de-al-menos-32-caracteres!!
+export BACKEND_WS_URL=wss://api.midominio.com/ws/room
+
+docker compose -f docker-compose.prod.yml up -d
+```
+
+PostgreSQL **no está incluido** en el compose — debes tenerlo corriendo aparte.
+
+---
+
+### Construcción manual de imágenes
+
+#### Frontend
 
 **Construir imagen:**
 
@@ -79,30 +107,25 @@ docker run -d \
 
 La URL del backend se inyecta en runtime mediante `envsubst` — no necesitas reconstruir la imagen al cambiar de entorno.
 
-### Backend — Imagen JVM estándar
-
-**Paso 1: Empaquetar**
+### Backend — Imagen JVM estándar (multi-stage)
 
 ```bash
 cd backend
-mvn package -DskipTests
+docker build -t dice-roller-backend:jvm .
 ```
 
-**Paso 2: Construir imagen Docker**
+El Dockerfile multi-stage compila el código con Maven y genera la imagen final con JDK 21 JRE.
 
-```bash
-docker build -f src/main/docker/Dockerfile.jvm -t dice-roller-backend:jvm .
-```
-
-**Paso 3: Ejecutar**
+**Ejecutar con PostgreSQL externo:**
 
 ```bash
 docker run -d \
   -p 8080:8080 \
   -e QUARKUS_PROFILE=prod \
-  -e DB_URL=jdbc:postgresql://postgres:5432/diceroller \
+  -e DB_URL=jdbc:postgresql://mi-postgres:5432/diceroller \
   -e DB_USER=postgres \
-  -e DB_PASSWORD=postgres \
+  -e DB_PASSWORD=secreta \
+  -e JWT_SECRET="clave-hmac-de-al-menos-32-caracteres!!" \
   --name dice-back \
   dice-roller-backend:jvm
 ```

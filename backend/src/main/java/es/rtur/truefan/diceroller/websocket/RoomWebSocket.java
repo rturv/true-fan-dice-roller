@@ -14,6 +14,7 @@ import es.rtur.truefan.diceroller.service.RoomService.JoinResult;
 import es.rtur.truefan.diceroller.service.RoomService.ReconnectResult;
 import es.rtur.truefan.diceroller.service.RoomService.ReshuffleResult;
 import es.rtur.truefan.diceroller.service.RoomService.TextMessageResult;
+import es.rtur.truefan.diceroller.service.JwtService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.websocket.OnClose;
@@ -21,6 +22,10 @@ import jakarta.websocket.OnError;
 import jakarta.websocket.OnMessage;
 import jakarta.websocket.OnOpen;
 import jakarta.websocket.Session;
+import jakarta.websocket.server.ServerEndpoint;
+import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
 import jakarta.websocket.server.ServerEndpoint;
 import java.io.IOException;
 import java.time.Instant;
@@ -39,6 +44,9 @@ public class RoomWebSocket {
 
     @Inject
     RoomService roomService;
+
+    @Inject
+    JwtService jwtService;
 
     private final Map<String, Set<Session>> roomSessions = new ConcurrentHashMap<>();
     private final Map<String, String> sessionIdToRoomCode = new ConcurrentHashMap<>();
@@ -84,6 +92,7 @@ public class RoomWebSocket {
                     } catch (Exception e) {}
                 }
                 case "pong" -> { /* heartbeat response */ }
+                case "renew_token" -> handleRenewToken(session, msg);
                 default -> sendError(session, "Unknown message type: " + type);
             }
         } catch (Exception e) {
@@ -289,6 +298,37 @@ public class RoomWebSocket {
         broadcastToRoom(getRoomCode(session), response.toString(), null);
     }
 
+    private void handleRenewToken(Session session, JsonNode msg) {
+        String oldToken = sessionIdToToken.get(session.getId());
+        if (oldToken == null) {
+            sendError(session, "No token to renew");
+            return;
+        }
+        String newToken = jwtService.renewToken(oldToken);
+        if (newToken == null) {
+            sendError(session, "Cannot renew token");
+            return;
+        }
+
+        JwtService.JwtToken claims = jwtService.validate(newToken);
+        if (claims == null) return;
+
+        // Update stored token in DB
+        RoomUser user = roomService.findUserBySessionToken(oldToken).orElse(null);
+        if (user != null) {
+            roomService.updateSessionToken(user, newToken);
+        }
+
+        // Re-register session with new token
+        String roomCode = sessionIdToRoomCode.remove(session.getId());
+        registerSession(session, roomCode, newToken);
+
+        ObjectNode response = objectMapper.createObjectNode();
+        response.put("type", "token_renewed");
+        response.put("sessionToken", newToken);
+        sendMessage(session, response.toString());
+    }
+
     private void handlePoolDelta(Session session, JsonNode msg) {
         RoomUser user = validateSession(session);
         if (user == null) return;
@@ -437,7 +477,21 @@ public class RoomWebSocket {
             sendError(session, "Not authenticated. Send join first.");
             return null;
         }
-        return roomService.findUserBySessionToken(sessionToken).orElse(null);
+        JwtService.JwtToken jwt = jwtService.validate(sessionToken);
+        if (jwt == null) {
+            sendError(session, "Invalid token");
+            return null;
+        }
+        if (jwt.expiresAt != null && jwt.expiresAt <= Instant.now().getEpochSecond()) {
+            sendError(session, "Token expired. Send renew_token.");
+            return null;
+        }
+        RoomUser user = roomService.findUserBySessionToken(sessionToken).orElse(null);
+        if (user == null) {
+            sendError(session, "Session not found");
+            return null;
+        }
+        return user;
     }
 
     private void registerSession(Session session, String roomCode, String sessionToken) {

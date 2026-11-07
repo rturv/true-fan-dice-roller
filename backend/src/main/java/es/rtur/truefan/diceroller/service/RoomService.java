@@ -36,6 +36,9 @@ public class RoomService {
     @Inject
     GameService gameService;
 
+    @Inject
+    JwtService jwtService;
+
     @Transactional
     public Room createRoom(String adminNickname) {
         String code = generateUniqueCode();
@@ -56,7 +59,7 @@ public class RoomService {
         user.joinedAt = Instant.now();
         user.lastSeenAt = Instant.now();
         user.connected = true;
-        user.sessionToken = UUID.randomUUID().toString();
+        user.sessionToken = jwtService.generateToken(adminNickname, room.code, true);
         entityManager.persist(user);
 
         return room;
@@ -110,7 +113,7 @@ public class RoomService {
         user.joinedAt = Instant.now();
         user.lastSeenAt = Instant.now();
         user.connected = true;
-        user.sessionToken = UUID.randomUUID().toString();
+        user.sessionToken = jwtService.generateToken(nickname, roomCode, false);
         entityManager.persist(user);
 
         List<ChatEntry> history = getRecentHistory(room);
@@ -367,6 +370,12 @@ public class RoomService {
         result.byNickname = user.nickname;
         result.timestamp = entry.timestamp.toString();
         return result;
+    }
+
+    @Transactional
+    public void updateSessionToken(RoomUser user, String newToken) {
+        user.sessionToken = newToken;
+        entityManager.merge(user);
     }
 
     @Transactional

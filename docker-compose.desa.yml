@@ -1,0 +1,45 @@
+# =============================================================================
+# Docker Compose — DESARROLLO
+# Base de datos: H2 en memoria (incluido en el backend)
+# Frontend:     http://localhost:4200
+# Backend:      http://localhost:8080
+# =============================================================================
+name: diceroller-desa
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: diceroller-backend-desa
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_PROFILE=dev
+      - JWT_SECRET=diceroller-dev-secret-key-min-32chars!!
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - diceroller-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: diceroller-frontend-desa
+    ports:
+      - "4200:80"
+    environment:
+      - BACKEND_WS_URL=ws://localhost:8080/ws/room
+      - BACKEND_HTTP_URL=http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - diceroller-net
+
+networks:
+  diceroller-net:
+    driver: bridge

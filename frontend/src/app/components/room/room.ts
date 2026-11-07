@@ -14,7 +14,7 @@ import type {
   selector: 'app-room',
   imports: [DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { 'class': 'room-page' },
+  host: { 'class': 'room-page', '(window:keydown)': 'onKeydown($event)' },
   template: `
     <header class="app-header">
       <div class="app-header-inner">
@@ -163,6 +163,11 @@ import type {
         }
       </div>
     </main>
+
+    <div class="chat-input-bar">
+      <input class="chat-input" type="text" [value]="chatText()" (input)="chatText.set($any($event.target).value)" (keydown.enter)="doSendMessage()" placeholder="Escribe un mensaje..." maxlength="500" />
+      <button class="chat-send-btn" (click)="doSendMessage()" [disabled]="!chatText().trim() || !wsConnected()">Enviar</button>
+    </div>
 
     <footer class="controls-bar">
       <div class="controls-inner">
@@ -385,6 +390,26 @@ import type {
     .connecting-msg { margin-top: 16px; font-size: 13px; color: var(--meta); }
     .msg-entry .msg-text { font-size: 14px; color: var(--fg); line-height: 1.5; }
 
+    .chat-input-bar {
+      flex-shrink: 0; display: flex; gap: var(--space-2);
+      padding: var(--space-2) var(--space-6); border-top: 1px solid var(--border-soft);
+      background: var(--bg);
+    }
+    .chat-input {
+      flex: 1; height: 38px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--fg); font-size: 14px; padding: 0 12px; outline: none;
+    }
+    .chat-input:focus { border-color: var(--accent); }
+    .chat-send-btn {
+      height: 38px; border-radius: var(--radius-sm); border: none;
+      background: var(--accent); color: var(--accent-on);
+      font-size: 13px; font-weight: 600; padding: 0 16px; cursor: pointer;
+      transition: opacity var(--motion-fast);
+    }
+    .chat-send-btn:hover { opacity: 0.9; }
+    .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
     .controls-bar {
       flex-shrink: 0; border-top: 1px solid var(--border);
       background: var(--bg); padding: var(--space-4) var(--space-6);
@@ -592,6 +617,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected isRolling = signal(false);
   protected isNewRoom = signal(false);
   private sessionToken = '';
+  private renewTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly SESSION_KEY = 'diced-session';
 
   protected diceCount = signal(2);
@@ -602,6 +628,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected poolModalOpen = signal(false);
   protected poolModalInput = signal('');
   protected copied = signal(false);
+  protected chatText = signal('');
 
   protected entries = signal<ChatDisplayEntry[]>([]);
   protected connectedUsers = signal<string[]>([]);
@@ -648,6 +675,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.cleanupFns.forEach(fn => fn());
+    if (this.renewTimer) clearTimeout(this.renewTimer);
     this.ws.disconnect();
   }
 
@@ -667,6 +695,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       const msg = data as JoinedMessage;
       this.sessionToken = msg.sessionToken;
       this.saveSession(msg.roomCode, this.myNickname(), msg.sessionToken, msg.isAdmin);
+      this.scheduleTokenRenewal();
       this.wsConnected.set(true);
       this.isAdmin.set(msg.isAdmin);
       this.connectedUsers.set(msg.users);
@@ -829,6 +858,18 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       });
     }));
 
+    this.cleanupFns.push(this.ws.on('token_renewed', (data: unknown) => {
+      const msg = data as { sessionToken: string };
+      this.sessionToken = msg.sessionToken;
+      // Update stored session with new token
+      const stored = this.loadSession();
+      if (stored) {
+        this.saveSession(stored.roomCode, stored.nick, msg.sessionToken, stored.isAdmin);
+      }
+      this.ws.setAuthMessage({ type: 'reconnect', roomCode: this.roomCode(), nickname: this.myNickname(), sessionToken: msg.sessionToken });
+      this.scheduleTokenRenewal();
+    }));
+
     this.cleanupFns.push(this.ws.on('user_list', (data: unknown) => {
       const msg = data as UserListMessage;
       this.connectedUsers.set(msg.users);
@@ -882,6 +923,31 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected doToggleCards(): void {
     this.ws.send({ type: 'toggle_cards' });
+  }
+
+  private scheduleTokenRenewal(): void {
+    if (this.renewTimer) clearTimeout(this.renewTimer);
+    // Renew 5 minutes before expiry (default 60-min token)
+    this.renewTimer = setTimeout(() => this.ws.send({ type: 'renew_token' }), 55 * 60 * 1000);
+  }
+
+  protected doSendMessage(): void {
+    const text = this.chatText().trim();
+    if (!text) return;
+    this.ws.send({ type: 'send_message', text });
+    this.chatText.set('');
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
+    if (event.key === '[' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      this.doPoolDelta(-1);
+    } else if (event.key === ']' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      this.doPoolDelta(1);
+    }
   }
 
   protected doLogout(): void {

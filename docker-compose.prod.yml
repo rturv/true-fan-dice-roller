@@ -1,0 +1,57 @@
+# =============================================================================
+# Docker Compose — PRODUCCIÓN
+# Base de datos: PostgreSQL externa (no incluida)
+#   Configurar vía variables de entorno:
+#     DB_URL      (ej: jdbc:postgresql://postgres-host:5432/diceroller)
+#     DB_USER
+#     DB_PASSWORD
+#     JWT_SECRET  (clave HMAC-SHA256 de al menos 32 caracteres)
+#
+# Frontend:      http://localhost:80
+# Backend:       http://localhost:8080
+# =============================================================================
+name: diceroller-prod
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: diceroller-backend-prod
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_PROFILE=prod
+      - DB_URL=${DB_URL:?DB_URL is required (ej: jdbc:postgresql://host:5432/diceroller)}
+      - DB_USER=${DB_USER:?DB_USER is required}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required (min 32 chars)}
+      - JAVA_OPTS_APPEND=-Xmx512m -Xms256m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - diceroller-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: diceroller-frontend-prod
+    ports:
+      - "80:80"
+    environment:
+      - BACKEND_WS_URL=${BACKEND_WS_URL:?BACKEND_WS_URL is required (ej: wss://api.dominio.com/ws/room)}
+      - BACKEND_HTTP_URL=${BACKEND_HTTP_URL:-}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - diceroller-net
+
+networks:
+  diceroller-net:
+    driver: bridge

@@ -28,3 +28,7 @@ Este repositorio está organizado en tres directorios principales:
 3. Las funcionalidades de interfaz deben implementarse en Angular siguiendo el diseño definido en OpenDesign.
 4. Los servicios y la lógica de negocio deben implementarse en Quarkus.
 5. Siempre que sea posible, verifica que la implementación desarrollada sea consistente con los diseños y flujos definidos en `./open-design`.
+
+## OTROS:
+maven está en C:\programas\apache-maven-3.9.9
+la jdk 21 para usar esta en C:\programas\jdk-21.0.10
