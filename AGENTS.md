@@ -32,3 +32,11 @@ Este repositorio está organizado en tres directorios principales:
 ## OTROS:
 maven está en C:\programas\apache-maven-3.9.9
 la jdk 21 para usar esta en C:\programas\jdk-21.0.10
+la jdk 25 para usar esta en C:\programas\jdk-25.0.2
+
+El backend se compila para **Java 25** (`maven.compiler.release=25`) y usa
+**Quarkus 3.40 LTS**. El build local usa Maven Toolchain: si existe
+`C:\Users\usuario\.m2\toolchains.xml`, el perfil `toolchain-jdk25` se activa
+automáticamente y compila con el JDK 25, independientemente del `JAVA_HOME`.
+Si el fichero no existe, Maven debe ejecutarse sobre un JDK 25 para compilar
+`release 25` (el `Dockerfile` ya usa Temurin 25).
