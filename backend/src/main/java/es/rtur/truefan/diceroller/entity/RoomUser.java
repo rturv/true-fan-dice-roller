@@ -35,6 +35,6 @@ public class RoomUser {
     @Column(nullable = false)
     public boolean connected;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 1024)
     public String sessionToken;
 }

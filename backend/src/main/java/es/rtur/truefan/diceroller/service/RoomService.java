@@ -178,6 +178,8 @@ public class RoomService {
         Optional<RoomUser> userOpt = findUserBySessionToken(sessionToken);
         userOpt.ifPresent(user -> {
             user.connected = false;
+            // Start the reconnect grace period from the moment of disconnection.
+            user.lastSeenAt = Instant.now();
             entityManager.merge(user);
         });
     }
@@ -402,6 +404,16 @@ public class RoomService {
             return Optional.empty();
         }
 
+        // Keep the current admin during the reconnect grace period. This avoids
+        // losing admin on a transient disconnect such as an F5 refresh.
+        RoomUser currentAdmin = findUserByNickname(room, room.adminNickname).orElse(null);
+        if (currentAdmin != null
+                && currentAdmin.lastSeenAt != null
+                && currentAdmin.lastSeenAt.isAfter(
+                        Instant.now().minusSeconds(RECONNECT_TIMEOUT_MINUTES * 60L))) {
+            return Optional.empty();
+        }
+
         List<RoomUser> connectedUsers = entityManager
             .createQuery("FROM RoomUser WHERE room = :room AND connected = true ORDER BY joinedAt ASC", RoomUser.class)
             .setParameter("room", room)
@@ -438,6 +450,15 @@ public class RoomService {
             .createQuery("FROM RoomUser WHERE room = :room AND sessionToken = :token", RoomUser.class)
             .setParameter("room", room)
             .setParameter("token", sessionToken)
+            .getResultList();
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    public Optional<RoomUser> findUserByNickname(Room room, String nickname) {
+        List<RoomUser> results = entityManager
+            .createQuery("FROM RoomUser WHERE room = :room AND nickname = :nickname", RoomUser.class)
+            .setParameter("room", room)
+            .setParameter("nickname", nickname)
             .getResultList();
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }

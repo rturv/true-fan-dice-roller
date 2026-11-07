@@ -27,12 +27,14 @@ export class WebsocketService {
     this.doConnect();
   }
 
-  /** Store the authentication message and send it immediately.
-   *  It will also be re-sent automatically whenever the WebSocket reconnects. */
-  setAuthMessage(msg: unknown): void {
+  /** Store the authentication message and optionally send it immediately.
+   *  It will also be re-sent automatically whenever the WebSocket reconnects.
+   *  Pass sendImmediately=false to only update the stored message (e.g. after
+   *  a successful join, so reconnections use `reconnect` instead of `create_room`). */
+  setAuthMessage(msg: unknown, sendImmediately = true): void {
     const str = typeof msg === 'string' ? msg : JSON.stringify(msg);
     this.authMessage = str;
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (sendImmediately && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(str);
     }
   }
@@ -64,6 +66,8 @@ export class WebsocketService {
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
+      // Any message proves the connection is alive; keep the heartbeat in sync.
+      this.lastPong = Date.now();
       try {
         const data = JSON.parse(event.data);
         const type = data.type as string;

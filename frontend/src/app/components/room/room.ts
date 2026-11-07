@@ -2,6 +2,8 @@ import { Component, ChangeDetectionStrategy, signal, computed, AfterViewInit, El
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { WebsocketService } from '../../services/websocket';
+import { BackendHealthService } from '../../services/backend-health';
+import { BackendStatusIndicatorComponent } from '../backend-status-indicator/backend-status-indicator';
 import type {
   ChatDisplayEntry, DiceResult, CardInfo,
   JoinedMessage, DiceRollMessage, CardDrawMessage,
@@ -12,7 +14,7 @@ import type {
 
 @Component({
   selector: 'app-room',
-  imports: [DatePipe],
+  imports: [DatePipe, BackendStatusIndicatorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { 'class': 'room-page', '(window:keydown)': 'onKeydown($event)' },
   template: `
@@ -21,6 +23,7 @@ import type {
         <span class="app-logo">True Fan Dice Roller</span>
         <span class="room-code" (click)="copyRoomCode()" title="Click para copiar">{{ copied() ? 'Copiado!' : roomCode() }}</span>
         <div class="header-controls">
+          <app-backend-status-indicator />
           <div class="style-picker">
             <label>Theme</label>
             <select [value]="currentStyle()" (change)="setStyle($any($event.target).value)">
@@ -166,7 +169,7 @@ import type {
 
     <div class="chat-input-bar">
       <input class="chat-input" type="text" [value]="chatText()" (input)="chatText.set($any($event.target).value)" (keydown.enter)="doSendMessage()" placeholder="Escribe un mensaje..." maxlength="500" />
-      <button class="chat-send-btn" (click)="doSendMessage()" [disabled]="!chatText().trim() || !wsConnected()">Enviar</button>
+      <button class="chat-send-btn" (click)="doSendMessage()" [disabled]="!chatText().trim() || !wsConnected() || !backendOnline()">Enviar</button>
     </div>
 
     <footer class="controls-bar">
@@ -174,11 +177,11 @@ import type {
         <div class="pool-control">
           <span class="pool-label">Reserva</span>
           <div class="pool-value-wrap">
-            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0" aria-label="Decrement pool">−</button>
+            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0 || !backendOnline()" aria-label="Decrement pool">−</button>
             <span class="pool-value" [class.pool-empty]="poolValue() === 0" [class.pool-filled]="poolValue() > 0">{{ poolValue() }}</span>
-            <button class="pool-btn" (click)="doPoolDelta(1)" aria-label="Increment pool">+</button>
+            <button class="pool-btn" (click)="doPoolDelta(1)" [disabled]="!backendOnline()" aria-label="Increment pool">+</button>
             @if (isAdmin()) {
-              <button class="pool-edit-btn" (click)="openPoolModal()" title="Set pool value">✎</button>
+              <button class="pool-edit-btn" (click)="openPoolModal()" [disabled]="!backendOnline()" title="Set pool value">✎</button>
             }
           </div>
         </div>
@@ -194,16 +197,16 @@ import type {
           <span class="mod-label">±</span>
           <input type="number" [value]="modifier()" (input)="setModifier($any($event.target).value)" min="-99" max="99" placeholder="0" aria-label="Roll modifier" />
         </div>
-        <button class="roll-btn" [class.rolling]="isRolling()" (click)="doRoll()" [disabled]="isRolling() || !wsConnected()">
+        <button class="roll-btn" [class.rolling]="isRolling()" (click)="doRoll()" [disabled]="isRolling() || !wsConnected() || !backendOnline()">
           <span class="roll-icon"></span>
           Roll
         </button>
-        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !cardsEnabled()" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : ''">
+        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !backendOnline() || !cardsEnabled()" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : ''">
           <span class="draw-card-icon"></span>
           Carta!
         </button>
         @if (isAdmin()) {
-          <button class="admin-btn" (click)="doReshuffle()" title="Reiniciar Baraja">⟳</button>
+          <button class="admin-btn" (click)="doReshuffle()" [disabled]="!backendOnline()" title="Reiniciar Baraja">⟳</button>
         }
       </div>
     </footer>
@@ -482,6 +485,8 @@ import type {
       transition: background var(--motion-fast);
     }
     .admin-btn:hover { background: color-mix(in oklab, var(--surface), var(--warn) 10%); }
+    .admin-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .pool-edit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* Pool controls */
     .pool-control { display: flex; align-items: center; gap: var(--space-2); }
@@ -610,6 +615,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   ws = inject(WebsocketService);
+  private readonly health = inject(BackendHealthService);
+  protected readonly backendOnline = this.health.online;
 
   protected roomCode = signal('');
   protected myNickname = signal('');
@@ -617,6 +624,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected isRolling = signal(false);
   protected isNewRoom = signal(false);
   private sessionToken = '';
+  private wsInitialized = false;
   private renewTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly SESSION_KEY = 'diced-session';
 
@@ -680,6 +688,9 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   private connectWebSocket(): void {
+    if (this.wsInitialized) return;
+    this.wsInitialized = true;
+
     const win = window as unknown as Record<string, Record<string, string>>;
     const configuredWsUrl = (win['__env']?.['backendWsUrl'] ?? '').trim();
     const isDev = window.location.port === '4200';
@@ -695,6 +706,14 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       const msg = data as JoinedMessage;
       this.sessionToken = msg.sessionToken;
       this.saveSession(msg.roomCode, this.myNickname(), msg.sessionToken, msg.isAdmin);
+      // From now on, any reconnection must restore THIS room (reconnect),
+      // never create a new one. Store it without sending it immediately.
+      this.ws.setAuthMessage({
+        type: 'reconnect',
+        roomCode: msg.roomCode,
+        nickname: this.myNickname(),
+        sessionToken: msg.sessionToken,
+      }, false);
       this.scheduleTokenRenewal();
       this.wsConnected.set(true);
       this.isAdmin.set(msg.isAdmin);
@@ -815,9 +834,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
         isSelf: false,
         newAdminNickname: msg.newAdminNickname
       });
-      if (msg.newAdminNickname === this.myNickname()) {
-        this.isAdmin.set(true);
-      }
+      this.isAdmin.set(msg.newAdminNickname === this.myNickname());
     }));
 
     this.cleanupFns.push(this.ws.on('deck_reshuffled', (data: unknown) => {
@@ -866,7 +883,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       if (stored) {
         this.saveSession(stored.roomCode, stored.nick, msg.sessionToken, stored.isAdmin);
       }
-      this.ws.setAuthMessage({ type: 'reconnect', roomCode: this.roomCode(), nickname: this.myNickname(), sessionToken: msg.sessionToken });
+      this.ws.setAuthMessage({ type: 'reconnect', roomCode: this.roomCode(), nickname: this.myNickname(), sessionToken: msg.sessionToken }, false);
       this.scheduleTokenRenewal();
     }));
 
@@ -904,24 +921,26 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   protected doRoll(): void {
-    if (this.isRolling()) return;
+    if (this.isRolling() || !this.backendOnline()) return;
     this.isRolling.set(true);
     this.ws.send({ type: 'roll_dice', count: this.diceCount(), modifier: this.modifier() });
     setTimeout(() => this.isRolling.set(false), 500);
   }
 
   protected doDrawCard(): void {
-    if (this.isRolling()) return;
+    if (this.isRolling() || !this.backendOnline()) return;
     this.isRolling.set(true);
     this.ws.send({ type: 'draw_card' });
     setTimeout(() => this.isRolling.set(false), 400);
   }
 
   protected doReshuffle(): void {
+    if (!this.backendOnline()) return;
     this.ws.send({ type: 'reshuffle_deck' });
   }
 
   protected doToggleCards(): void {
+    if (!this.backendOnline()) return;
     this.ws.send({ type: 'toggle_cards' });
   }
 
@@ -933,7 +952,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected doSendMessage(): void {
     const text = this.chatText().trim();
-    if (!text) return;
+    if (!text || !this.backendOnline()) return;
     this.ws.send({ type: 'send_message', text });
     this.chatText.set('');
   }
@@ -992,6 +1011,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected poolModalError = signal('');
 
   protected doPoolDelta(delta: number): void {
+    if (!this.backendOnline()) return;
     const newVal = this.poolValue() + delta;
     if (newVal < 0) return;
     this.ws.send({ type: 'pool_delta', delta });
@@ -1009,6 +1029,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   protected doPoolSet(): void {
+    if (!this.backendOnline()) return;
     const val = parseInt(this.poolModalInput(), 10);
     if (isNaN(val) || val < 0) {
       this.poolModalError.set('El valor debe ser >= 0');

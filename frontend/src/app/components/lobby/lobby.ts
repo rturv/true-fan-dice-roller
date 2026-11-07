@@ -1,15 +1,21 @@
-import { Component, ChangeDetectionStrategy, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { BackendHealthService } from '../../services/backend-health';
+import { BackendStatusIndicatorComponent } from '../backend-status-indicator/backend-status-indicator';
 
 @Component({
   selector: 'app-lobby',
-  imports: [FormsModule],
+  imports: [FormsModule, BackendStatusIndicatorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { 'class': 'lobby-page' },
   template: `
     <div class="lobby-container">
       <div class="lobby-card">
+        <div class="lobby-status">
+          <app-backend-status-indicator />
+        </div>
+
         <div class="lobby-logo">
           <span class="app-logo">True Fan Dice Roller</span>
         </div>
@@ -35,7 +41,7 @@ import { FormsModule } from '@angular/forms';
           </div>
 
           <div class="lobby-actions">
-            <button class="btn-primary" (click)="createRoom()" [disabled]="!nickname().trim()">
+            <button class="btn-primary" (click)="createRoom()" [disabled]="!nickname().trim() || !backendOnline()">
               Crear Sala
             </button>
           </div>
@@ -61,7 +67,7 @@ import { FormsModule } from '@angular/forms';
             }
           </div>
 
-          <button class="btn-secondary" (click)="joinRoom()" [disabled]="!nickname().trim() || !roomCode().trim()">
+          <button class="btn-secondary" (click)="joinRoom()" [disabled]="!nickname().trim() || !roomCode().trim() || !backendOnline()">
             Unirse a Sala
           </button>
 
@@ -74,6 +80,7 @@ import { FormsModule } from '@angular/forms';
   `,
   styles: `
     :host { display: flex; height: 100%; }
+    .lobby-status { display: flex; justify-content: flex-end; margin-bottom: 12px; }
     .lobby-container {
       display: flex; align-items: center; justify-content: center;
       width: 100%; padding: 24px;
@@ -146,6 +153,9 @@ import { FormsModule } from '@angular/forms';
   `
 })
 export class LobbyComponent {
+  private readonly health = inject(BackendHealthService);
+  protected readonly backendOnline = this.health.online;
+
   nickname = signal('');
   roomCode = signal('');
   nicknameError = signal('');
@@ -156,6 +166,10 @@ export class LobbyComponent {
 
   createRoom(): void {
     this.clearErrors();
+    if (!this.backendOnline()) {
+      this.errorMessage.set('El servidor no está disponible. Inténtalo de nuevo en unos segundos.');
+      return;
+    }
     const nick = this.nickname().trim();
     if (!this.validateNickname(nick)) return;
 
@@ -167,6 +181,10 @@ export class LobbyComponent {
 
   joinRoom(): void {
     this.clearErrors();
+    if (!this.backendOnline()) {
+      this.errorMessage.set('El servidor no está disponible. Inténtalo de nuevo en unos segundos.');
+      return;
+    }
     const nick = this.nickname().trim();
     const code = this.roomCode().trim().toUpperCase();
 

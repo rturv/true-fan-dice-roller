@@ -442,10 +442,7 @@ public class RoomWebSocket {
         String roomCode = sessionIdToRoomCode.remove(session.getId());
         String sessionToken = sessionIdToToken.remove(session.getId());
 
-        if (sessionToken != null) {
-            roomService.markDisconnected(sessionToken);
-        }
-
+        // Remove the session from the room registry first.
         if (roomCode != null) {
             Set<Session> sessions = roomSessions.get(roomCode);
             if (sessions != null) {
@@ -454,19 +451,31 @@ public class RoomWebSocket {
                     roomSessions.remove(roomCode);
                 }
             }
+        }
 
-            if (sessionToken != null) {
-                try {
-                    RoomUser user = roomService.findUserBySessionToken(sessionToken).orElse(null);
-                    if (user != null) {
-                        broadcastToRoom(roomCode, createUserLeftMsg(user.nickname, "disconnect"), null);
+        if (sessionToken == null) {
+            return;
+        }
 
-                        roomService.transferAdminIfNeeded(user.room);
+        // If another live session already holds the same token (quick
+        // reconnect / F5), keep the user connected and do not emit user_left.
+        if (sessionIdToToken.containsValue(sessionToken)) {
+            return;
+        }
 
-                        broadcastUserList(roomCode);
-                    }
-                } catch (Exception e) {
+        roomService.markDisconnected(sessionToken);
+
+        if (roomCode != null) {
+            try {
+                RoomUser user = roomService.findUserBySessionToken(sessionToken).orElse(null);
+                if (user != null) {
+                    broadcastToRoom(roomCode, createUserLeftMsg(user.nickname, "disconnect"), null);
+                    // Admin is NOT transferred here: the session keeps a
+                    // reconnect grace period. It is transferred later by
+                    // transferAdminIfNeeded once that period elapses.
+                    broadcastUserList(roomCode);
                 }
+            } catch (Exception e) {
             }
         }
     }
@@ -517,6 +526,9 @@ public class RoomWebSocket {
         Room room = roomService.findRoomByCode(roomCode);
         if (room == null) return;
 
+        String adminBefore = room.adminNickname;
+        roomService.transferAdminIfNeeded(room);
+
         List<String> users = roomService.getConnectedNicknames(room);
 
         ObjectNode msg = objectMapper.createObjectNode();
@@ -528,18 +540,12 @@ public class RoomWebSocket {
 
         broadcastToRoom(roomCode, msg.toString(), null);
 
-        roomService.transferAdminIfNeeded(room);
-
-        List<String> updatedUsers = roomService.getConnectedNicknames(room);
-        String admin = room.adminNickname;
-        for (String user : updatedUsers) {
-            if (!users.contains(user)) continue;
-            if (admin != null && !admin.equals(room.adminNickname)) {
-                ObjectNode adminMsg = objectMapper.createObjectNode();
-                adminMsg.put("type", "admin_changed");
-                adminMsg.put("newAdminNickname", admin);
-                broadcastToRoom(roomCode, adminMsg.toString(), null);
-            }
+        String adminAfter = room.adminNickname;
+        if (adminBefore != null && adminAfter != null && !adminBefore.equals(adminAfter)) {
+            ObjectNode adminMsg = objectMapper.createObjectNode();
+            adminMsg.put("type", "admin_changed");
+            adminMsg.put("newAdminNickname", adminAfter);
+            broadcastToRoom(roomCode, adminMsg.toString(), null);
         }
     }
 
