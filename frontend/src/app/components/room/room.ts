@@ -12,10 +12,17 @@ import type {
   UserListMessage, HistoryEntry, DrawResult, PoolUpdatedMessage, CardsToggledMessage
 } from '../../models/game.models';
 import { parseChatCommand } from './chat-commands';
+import { EasterEggComponent } from './easter-egg/easter-egg';
+import {
+  nextEasterEgg,
+  readEasterEggIndex,
+  writeEasterEggIndex,
+  type EasterEggEffect,
+} from './easter-egg/rotation';
 
 @Component({
   selector: 'app-room',
-  imports: [DatePipe, BackendStatusIndicatorComponent],
+  imports: [DatePipe, BackendStatusIndicatorComponent, EasterEggComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { 'class': 'room-page', '(window:keydown)': 'onKeydown($event)' },
   template: `
@@ -231,6 +238,10 @@ import { parseChatCommand } from './chat-commands';
           </div>
         </div>
       </div>
+    }
+
+    @if (easterEggActive()) {
+      <app-easter-egg [effect]="easterEggEffect()" (done)="easterEggActive.set(false)" />
     }
   `,
   styles: [`
@@ -634,6 +645,9 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected isAdmin = signal(false);
   protected isRolling = signal(false);
   protected isNewRoom = signal(false);
+  protected easterEggActive = signal(false);
+  protected easterEggEffect = signal<EasterEggEffect>('glitch-dice');
+  private easterEggTimer: ReturnType<typeof setTimeout> | null = null;
   private sessionToken = '';
   private wsInitialized = false;
   private renewTimer: ReturnType<typeof setTimeout> | null = null;
@@ -693,6 +707,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.cleanupFns.forEach(fn => fn());
     if (this.renewTimer) clearTimeout(this.renewTimer);
+    if (this.easterEggTimer) clearTimeout(this.easterEggTimer);
     this.ws.disconnect();
   }
 
@@ -929,6 +944,22 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     });
   }
 
+  /** Plays the next easter egg effect, advancing the persisted rotation. */
+  private triggerEasterEgg(): void {
+    const { effect, next } = nextEasterEgg(readEasterEggIndex());
+    writeEasterEggIndex(next);
+    this.easterEggEffect.set(effect);
+
+    if (this.easterEggActive()) {
+      // Recreate the component so the timeline restarts from zero.
+      this.easterEggActive.set(false);
+      if (this.easterEggTimer) clearTimeout(this.easterEggTimer);
+      this.easterEggTimer = setTimeout(() => this.easterEggActive.set(true));
+    } else {
+      this.easterEggActive.set(true);
+    }
+  }
+
   /** Compact notation of the roll that was requested, e.g. `3d6+3`. */
   protected rollFormula(result: DiceResult): string {
     const count = result.initialCount || result.values.length;
@@ -969,8 +1000,10 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected doSendMessage(): void {
     const text = this.chatText().trim();
-    if (!text || !this.backendOnline()) return;
+    if (!text) return;
 
+    // Commands are evaluated first so purely local ones (the easter egg) work
+    // even when the backend is not reachable.
     if (text.startsWith('/')) {
       const outcome = this.runCommand(text);
       if (outcome === 'sent') {
@@ -979,6 +1012,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       }
       if (outcome === 'blocked') return;
     }
+
+    if (!this.backendOnline()) return;
 
     this.ws.send({ type: 'send_message', text });
     this.chatText.set('');
@@ -995,6 +1030,12 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   private runCommand(raw: string): 'sent' | 'blocked' | null {
     const command = parseChatCommand(raw);
     if (!command) return null;
+
+    if (command.kind === 'easter_egg') {
+      this.triggerEasterEgg();
+      return 'sent';
+    }
+
     if (!this.wsConnected() || !this.backendOnline()) return 'blocked';
 
     switch (command.kind) {

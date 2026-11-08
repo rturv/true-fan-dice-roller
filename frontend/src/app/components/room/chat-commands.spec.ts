@@ -27,6 +27,14 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/20d6-99')).toEqual({ kind: 'roll', count: 20, modifier: -99 });
   });
 
+  it('parses the hidden easter egg aliases', () => {
+    expect(parseChatCommand('/rtur')).toEqual({ kind: 'easter_egg' });
+    expect(parseChatCommand('/RTUR')).toEqual({ kind: 'easter_egg' });
+    expect(parseChatCommand('/ramorco')).toEqual({ kind: 'easter_egg' });
+    expect(parseChatCommand('/RAMORCO')).toEqual({ kind: 'easter_egg' });
+    expect(parseChatCommand('/ rtur')).toEqual({ kind: 'easter_egg' });
+  });
+
   it('rejects anything that is not a command', () => {
     expect(parseChatCommand('')).toBeNull();
     expect(parseChatCommand('/')).toBeNull();
@@ -36,6 +44,8 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/roll ahora')).toBeNull();
     expect(parseChatCommand('texto normal')).toBeNull();
     expect(parseChatCommand('hola /carta')).toBeNull();
+    expect(parseChatCommand('/rturx')).toBeNull();
+    expect(parseChatCommand('/ramorco2')).toBeNull();
   });
 
   it('rejects dice expressions outside the allowed ranges', () => {

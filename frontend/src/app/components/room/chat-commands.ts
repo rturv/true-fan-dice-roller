@@ -9,7 +9,8 @@
 export type ChatCommand =
   | { kind: 'draw_card' }
   | { kind: 'roll_current' }
-  | { kind: 'roll'; count: number; modifier: number };
+  | { kind: 'roll'; count: number; modifier: number }
+  | { kind: 'easter_egg' };
 
 /** Matches `Nd6`, `Nd6+M` and `Nd6-M` (N is optional, so `d6` means one die). */
 const DICE_PATTERN = /^(\d{0,2})d6(?:\s*([+-])\s*(\d{1,2}))?$/i;
@@ -34,6 +35,8 @@ export function parseChatCommand(raw: string): ChatCommand | null {
   const lower = body.toLowerCase();
   if (lower === 'carta') return { kind: 'draw_card' };
   if (lower === 'roll') return { kind: 'roll_current' };
+  // Hidden easter egg, deliberately left out of the command hint.
+  if (lower === 'rtur' || lower === 'ramorco') return { kind: 'easter_egg' };
 
   const match = DICE_PATTERN.exec(lower);
   if (!match) return null;
