@@ -265,6 +265,7 @@ import {
       text-shadow: var(--logo-shadow);
       transform: rotate(-2deg) skewX(-3deg);
       display: inline-block; padding: 4px 12px;
+      white-space: nowrap; flex-shrink: 0;
       background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
       border-radius: 4px;
     }
@@ -614,11 +615,17 @@ import {
     .joker-card .card-corner, .joker-card .card-suit-label { color: var(--fg); }
     .joker-card .card-suit-glyph { color: var(--accent); }
 
+    /* Below this width the header controls need their own row so the logo can
+       stay on a single line (the admin cards toggle makes them too wide). */
+    @media (max-width: 1000px) {
+      .app-header-inner { flex-wrap: wrap; }
+      .header-controls { width: 100%; justify-content: flex-end; margin-top: var(--space-2); flex-wrap: wrap; }
+    }
+
     @media (max-width: 600px) {
       .app-header { padding: var(--space-3); }
-      .app-header-inner { flex-wrap: wrap; }
       .app-logo { font-size: 26px; }
-      .header-controls { width: 100%; justify-content: space-between; margin-top: var(--space-2); flex-wrap: wrap; }
+      .header-controls { justify-content: space-between; }
       .chat-log { padding: var(--space-3); }
       .roll-entry { padding: var(--space-3) var(--space-4); }
       .controls-bar { padding: var(--space-3); }
