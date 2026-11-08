@@ -28,10 +28,16 @@ import type {
             <label>Theme</label>
             <select [value]="currentStyle()" (change)="setStyle($any($event.target).value)">
               <option value="classic">Classic</option>
+              <option value="alejo">Alejo</option>
               <option value="ocean">Ocean</option>
               <option value="sunset">Sunset</option>
               <option value="forest">Forest</option>
+              <option value="pergamino">Pergamino</option>
+              <option value="sakura">Sakura</option>
               <option value="neon">Neon</option>
+              <option value="playeo">Playeo</option>
+              <option value="dracula">Dracula</option>
+              <option value="halloween">Halloween</option>
               <option value="matrix">Matrix</option>
               <option value="batman">Batman</option>
               <option value="spaceship">Spaceship</option>
@@ -50,10 +56,6 @@ import type {
               <span class="cards-toggle-switch"></span>
             </label>
           }
-          <button class="theme-toggle" (click)="toggleTheme()" aria-label="Toggle dark mode">
-            <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          </button>
           <button class="logout-btn" (click)="doLogout()" title="Salir de la sala">✕</button>
         </div>
       </div>
@@ -63,8 +65,8 @@ import type {
       <div class="chat-log-inner">
         @if (entries().length === 0) {
           <div class="welcome-prompt">
-            <h2>Roll the dice together</h2>
-            <p>Pick your name and start rolling dice or drawing from the Spanish deck. Watch the chat light up.</p>
+            <h2>¡Vamos a Lanzar dados!</h2>
+            <p>Puedes escribir mensajes, lanzar dados o sacar cartas de la baraja española. Hacer click en el codigo de la sala te deja copiarlo para pasarlo a tus coleguis.</p>
             <div class="example-dice">
               <span class="die">1</span>
               <span class="die">3</span>
@@ -232,7 +234,8 @@ import type {
 
     .app-header {
       flex-shrink: 0;
-      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 80%, black), color-mix(in oklab, var(--accent) 55%, black));
+      background: var(--header-bg);
+      box-shadow: var(--header-glow);
       padding: var(--space-4) var(--space-6);
     }
     .app-header-inner {
@@ -242,35 +245,36 @@ import type {
     .app-logo {
       font-family: "Bangers", "Impact", "Arial Black", sans-serif;
       font-size: 38px; font-weight: 400;
-      color: var(--accent-on); letter-spacing: 0.08em;
+      color: var(--logo-fg); letter-spacing: 0.08em;
       line-height: 1; text-transform: uppercase;
-      text-shadow: 4px 4px 0 rgba(0,0,0,0.5), 5px 5px 0 rgba(0,0,0,0.3);
+      text-shadow: var(--logo-shadow);
       transform: rotate(-2deg) skewX(-3deg);
       display: inline-block; padding: 4px 12px;
       background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
       border-radius: 4px;
     }
     .room-code {
-      font-family: var(--font-mono); font-size: 14px; color: var(--accent-on);
-      background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 6px;
+      font-family: var(--font-mono); font-size: 14px; color: var(--header-fg);
+      background: var(--header-surface); padding: 4px 12px; border-radius: 6px;
       letter-spacing: 0.15em; font-weight: 600; cursor: pointer;
       user-select: all; transition: background var(--motion-fast);
     }
-    .room-code:hover { background: rgba(255,255,255,0.28); }
+    .room-code:hover { background: var(--header-surface-hover); }
     .header-controls {
       display: flex; align-items: center; gap: var(--space-3);
     }
     .user-picker, .style-picker {
       display: flex; align-items: center; gap: var(--space-2);
-      background: rgba(255,255,255,0.12); border-radius: var(--radius-md);
+      background: var(--header-surface); border-radius: var(--radius-md);
+      border: 1px solid var(--header-border);
       padding: var(--space-1) var(--space-3); backdrop-filter: blur(8px);
     }
     .user-picker label, .style-picker label {
-      font-size: 12px; color: rgba(255,255,255,0.7); font-weight: 500; white-space: nowrap;
+      font-size: 12px; color: var(--header-fg-muted); font-weight: 500; white-space: nowrap;
     }
     .style-picker select {
-      background: transparent; border: 1px solid rgba(255,255,255,0.25);
-      color: var(--accent-on); border-radius: var(--radius-sm);
+      background: transparent; border: 1px solid var(--header-border);
+      color: var(--header-fg); border-radius: var(--radius-sm);
       padding: 4px 28px 4px 10px; font-size: 13px; font-weight: 600;
       appearance: none; cursor: pointer;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
@@ -278,54 +282,43 @@ import type {
     }
     .style-picker select option { color: var(--fg); background: var(--bg); }
     .user-count {
-      font-family: var(--font-mono); font-size: 13px; color: var(--accent-on); font-weight: 700;
+      font-family: var(--font-mono); font-size: 13px; color: var(--header-fg); font-weight: 700;
     }
-    .theme-toggle {
-      width: 40px; height: 40px; border-radius: var(--radius-sm); border: none;
-      background: rgba(255,255,255,0.12); backdrop-filter: blur(8px);
-      display: grid; place-items: center; cursor: pointer;
-      transition: background var(--motion-fast) var(--ease-standard);
-    }
-    .theme-toggle:hover { background: rgba(255,255,255,0.2); }
-    .theme-toggle svg { width: 20px; height: 20px; fill: var(--accent-on); }
 
     /* Cards toggle */
     .cards-toggle {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 2px 10px; border-radius: var(--radius-sm);
-      background: rgba(255,255,255,0.1); cursor: pointer;
+      background: var(--header-surface); cursor: pointer;
       user-select: none; height: 32px;
     }
     .cards-toggle-label {
-      font-size: 11px; color: var(--accent-on); font-weight: 600;
+      font-size: 11px; color: var(--header-fg); font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.06em;
     }
     .cards-toggle input { display: none; }
     .cards-toggle-switch {
-      width: 32px; height: 18px; background: rgba(255,255,255,0.25);
+      width: 32px; height: 18px; background: var(--header-border);
       border-radius: 9999px; position: relative; transition: background 120ms;
     }
     .cards-toggle-switch::after {
       content: ''; position: absolute; top: 2px; left: 2px;
       width: 14px; height: 14px; border-radius: 50%;
-      background: var(--accent-on); transition: transform 120ms;
+      background: var(--header-fg); transition: transform 120ms;
     }
     .cards-toggle input:checked + .cards-toggle-switch { background: var(--success); }
     .cards-toggle input:checked + .cards-toggle-switch::after { transform: translateX(14px); }
-    .cards-toggle:hover { background: rgba(255,255,255,0.18); }
+    .cards-toggle:hover { background: var(--header-surface-hover); }
 
     /* Logout */
     .logout-btn {
       width: 40px; height: 40px; border-radius: var(--radius-sm); border: none;
-      background: rgba(255,255,255,0.12); backdrop-filter: blur(8px);
-      color: var(--accent-on); font-size: 18px; cursor: pointer;
+      background: var(--header-surface); backdrop-filter: blur(8px);
+      color: var(--header-fg); font-size: 18px; cursor: pointer;
       display: grid; place-items: center;
       transition: background var(--motion-fast);
     }
-    .logout-btn:hover { background: rgba(255,255,255,0.2); }
-    .icon-sun { display: none; }
-    :root[data-theme="dark"] .icon-sun { display: block; }
-    :root[data-theme="dark"] .icon-moon { display: none; }
+    .logout-btn:hover { background: var(--header-surface-hover); }
 
     .chat-log {
       flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6);
@@ -640,7 +633,6 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected entries = signal<ChatDisplayEntry[]>([]);
   protected connectedUsers = signal<string[]>([]);
-  protected currentTheme = signal<'light' | 'dark'>('light');
   protected currentStyle = signal('classic');
 
   private chatLogEl = viewChild<ElementRef<HTMLElement>>('chatLog');
@@ -656,7 +648,6 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    this.initTheme();
     this.initStyle();
 
     this.route.params.subscribe(params => {
@@ -1069,34 +1060,24 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  protected toggleTheme(): void {
-    const next = this.currentTheme() === 'light' ? 'dark' : 'light';
-    this.currentTheme.set(next);
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('diced-theme', next);
-  }
-
   protected setStyle(style: string): void {
     this.currentStyle.set(style);
     document.documentElement.setAttribute('data-style', style);
     localStorage.setItem('diced-style', style);
   }
 
-  private initTheme(): void {
-    const stored = localStorage.getItem('diced-theme');
-    if (stored) {
-      this.currentTheme.set(stored as 'light' | 'dark');
-      document.documentElement.setAttribute('data-theme', stored);
-    } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-      this.currentTheme.set('dark');
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-  }
+  /** Keep in sync with the <option> list and the blocks in styles.scss. */
+  private static readonly THEMES = [
+    'classic', 'alejo', 'ocean', 'sunset', 'forest', 'pergamino', 'sakura',
+    'neon', 'playeo', 'dracula', 'halloween', 'matrix', 'batman', 'spaceship'
+  ];
 
   private initStyle(): void {
     const stored = localStorage.getItem('diced-style') || 'classic';
-    this.currentStyle.set(stored);
-    document.documentElement.setAttribute('data-style', stored);
+    // Ignore themes that no longer exist (e.g. a removed one left in storage).
+    const style = RoomComponent.THEMES.includes(stored) ? stored : 'classic';
+    this.currentStyle.set(style);
+    document.documentElement.setAttribute('data-style', style);
   }
 
   private addEntry(entry: ChatDisplayEntry): void {
