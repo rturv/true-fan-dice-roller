@@ -215,6 +215,8 @@ docker run -d \
 
 La imagen nativa arranca en **milisegundos** y consume mucha menos RAM.
 
+> Guía completa del build nativo y publicación en GHCR (`ghcr.io/rturv/dice-roller-backend`): [`docs/backend-native-image.md`](docs/backend-native-image.md).
+
 ### Docker Compose completo (ejemplo)
 
 `docker-compose.yml` (puedes crearlo en la raíz):
@@ -261,6 +263,8 @@ volumes:
 ## Despliegue estático en Render
 
 El frontend no necesita contenedor: se puede publicar como **Static Site**.
+
+> Guía detallada, con rewrites de SPA, variables y resolución de problemas: [`docs/render-static-site.md`](docs/render-static-site.md).
 
 1. **New + → Static Site** y conecta el repositorio.
 2. Configuración:
