@@ -86,7 +86,7 @@ import { parseChatCommand } from './chat-commands';
           @if (entry.type === 'dice_roll') {
             <div class="roll-entry fade-in" [class.self-roll]="entry.isSelf">
               <div class="roll-entry-header">
-                <span class="roll-user">{{ entry.nickname }}@if (entry.isSelf) {<span class="badge-you">you</span>}</span>
+                <span class="roll-user">{{ entry.nickname }}@if (entry.isSelf) {<span class="badge-you">you</span>}<span class="roll-formula">{{ rollFormula(entry.result!) }}</span></span>
                 <span class="roll-time">{{ entry.timestamp | date:'HH:mm' }}</span>
               </div>
               <div class="dice-row">
@@ -347,6 +347,10 @@ import { parseChatCommand } from './chat-commands';
       margin-bottom: var(--space-3); gap: var(--space-2);
     }
     .roll-user { font-weight: 600; font-size: 14px; color: var(--fg); }
+    .roll-formula {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 400;
+      color: var(--meta); margin-left: 6px; white-space: nowrap;
+    }
     .badge-you {
       display: inline-block; background: var(--success); color: white;
       font-size: 10px; font-family: var(--font-mono); text-transform: uppercase;
@@ -923,6 +927,14 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 1500);
     });
+  }
+
+  /** Compact notation of the roll that was requested, e.g. `3d6+3`. */
+  protected rollFormula(result: DiceResult): string {
+    const count = result.initialCount || result.values.length;
+    const modifier =
+      result.modifier > 0 ? `+${result.modifier}` : result.modifier < 0 ? `${result.modifier}` : '';
+    return `${count}d6${modifier}`;
   }
 
   protected doRoll(): void {
