@@ -11,6 +11,7 @@ import type {
   UserKickedMessage, AdminChangedMessage, DeckReshuffledMessage,
   UserListMessage, HistoryEntry, DrawResult, PoolUpdatedMessage, CardsToggledMessage
 } from '../../models/game.models';
+import { parseChatCommand } from './chat-commands';
 
 @Component({
   selector: 'app-room',
@@ -172,6 +173,9 @@ import type {
     <div class="chat-input-bar">
       <input class="chat-input" type="text" [value]="chatText()" (input)="chatText.set($any($event.target).value)" (keydown.enter)="doSendMessage()" placeholder="Escribe un mensaje..." maxlength="500" />
       <button class="chat-send-btn" (click)="doSendMessage()" [disabled]="!chatText().trim() || !wsConnected() || !backendOnline()">Enviar</button>
+      @if (chatText().trim().startsWith('/')) {
+        <div class="cmd-hint">Comandos: <code>/carta</code> · <code>/roll</code> · <code>/3d6+3</code></div>
+      }
     </div>
 
     <footer class="controls-bar">
@@ -201,11 +205,11 @@ import type {
         </div>
         <button class="roll-btn" [class.rolling]="isRolling()" (click)="doRoll()" [disabled]="isRolling() || !wsConnected() || !backendOnline()">
           <span class="roll-icon"></span>
-          Roll
+          Lanzar
         </button>
         <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !backendOnline() || !cardsEnabled()" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : ''">
           <span class="draw-card-icon"></span>
-          Carta!
+          ¡Carta!
         </button>
         @if (isAdmin()) {
           <button class="admin-btn" (click)="doReshuffle()" [disabled]="!backendOnline()" title="Reiniciar Baraja">⟳</button>
@@ -387,9 +391,19 @@ import type {
     .msg-entry .msg-text { font-size: 14px; color: var(--fg); line-height: 1.5; }
 
     .chat-input-bar {
-      flex-shrink: 0; display: flex; gap: var(--space-2);
+      flex-shrink: 0; display: flex; flex-wrap: wrap; gap: var(--space-2);
       padding: var(--space-2) var(--space-6); border-top: 1px solid var(--border-soft);
       background: var(--bg);
+    }
+    .cmd-hint {
+      flex-basis: 100%;
+      font-size: 12px; color: var(--muted); line-height: 1.2;
+      padding: 0 2px;
+    }
+    .cmd-hint code {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--fg-2); background: var(--surface);
+      padding: 1px 5px; border-radius: 4px;
     }
     .chat-input {
       flex: 1; height: 38px; border-radius: var(--radius-sm);
@@ -944,8 +958,51 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected doSendMessage(): void {
     const text = this.chatText().trim();
     if (!text || !this.backendOnline()) return;
+
+    if (text.startsWith('/')) {
+      const outcome = this.runCommand(text);
+      if (outcome === 'sent') {
+        this.chatText.set('');
+        return;
+      }
+      if (outcome === 'blocked') return;
+    }
+
     this.ws.send({ type: 'send_message', text });
     this.chatText.set('');
+  }
+
+  /**
+   * Executes a chat command such as `/carta` or `/3d6+3`.
+   *
+   * - `sent`: the command matched and was executed.
+   * - `blocked`: the command matched but cannot run right now (no connection,
+   *   roll in progress, cards disabled). The input text is kept.
+   * - `null`: the text is not a command, so it must go to the chat as-is.
+   */
+  private runCommand(raw: string): 'sent' | 'blocked' | null {
+    const command = parseChatCommand(raw);
+    if (!command) return null;
+    if (!this.wsConnected() || !this.backendOnline()) return 'blocked';
+
+    switch (command.kind) {
+      case 'draw_card':
+        if (this.isRolling() || !this.cardsEnabled()) return 'blocked';
+        this.doDrawCard();
+        return 'sent';
+      case 'roll_current':
+        if (this.isRolling()) return 'blocked';
+        this.doRoll();
+        return 'sent';
+      case 'roll':
+        if (this.isRolling()) return 'blocked';
+        this.diceCount.set(command.count);
+        this.modifier.set(command.modifier);
+        this.doRoll();
+        return 'sent';
+      default:
+        return null;
+    }
   }
 
   protected onKeydown(event: KeyboardEvent): void {
