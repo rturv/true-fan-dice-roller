@@ -40,16 +40,6 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
             }
           </div>
 
-          <div class="lobby-actions">
-            <button class="btn-primary" (click)="createRoom()" [disabled]="!nickname().trim() || !backendOnline()">
-              Crear Sala
-            </button>
-          </div>
-
-          <div class="lobby-divider">
-            <span>o</span>
-          </div>
-
           <div class="field-group">
             <label for="roomCode">Código de sala</label>
             <input
@@ -67,8 +57,16 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
             }
           </div>
 
-          <button class="btn-secondary" (click)="joinRoom()" [disabled]="!nickname().trim() || !roomCode().trim() || !backendOnline()">
+          <button class="btn-primary" (click)="joinRoom()" [disabled]="!nickname().trim() || !roomCode().trim() || !backendOnline()">
             Unirse a Sala
+          </button>
+
+          <div class="lobby-divider">
+            <span>o</span>
+          </div>
+
+          <button class="btn-secondary" (click)="createRoom()" [disabled]="!nickname().trim() || !backendOnline()">
+            Crear mi propia Sala
           </button>
 
           @if (errorMessage()) {
@@ -120,7 +118,6 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
     .lobby-input:focus { border-color: var(--accent); }
     .lobby-input.input-error { border-color: var(--danger); }
     .field-error { font-size: 12px; color: var(--danger); }
-    .lobby-actions { display: flex; flex-direction: column; }
     .btn-primary, .btn-secondary {
       height: 48px; border-radius: 8px; border: none;
       font-family: var(--font-display); font-size: 17px; font-weight: 700;
