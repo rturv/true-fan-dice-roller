@@ -1,5 +1,6 @@
 package es.rtur.truefan.diceroller.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import es.rtur.truefan.diceroller.entity.ChatEntry;
 import es.rtur.truefan.diceroller.entity.ChatEntry.EntryType;
 import es.rtur.truefan.diceroller.entity.Room;
@@ -36,6 +37,9 @@ public class RoomService {
 
     @Inject
     GameService gameService;
+
+    @Inject
+    ObjectMapper objectMapper;
 
     @Inject
     JwtService jwtService;
@@ -262,7 +266,7 @@ public class RoomService {
 
         String content;
         try {
-            content = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(diceResult);
+            content = objectMapper.writeValueAsString(diceResult);
         } catch (Exception e) {
             content = "{}";
         }
@@ -292,7 +296,7 @@ public class RoomService {
 
         String content;
         try {
-            content = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(drawResult);
+            content = objectMapper.writeValueAsString(drawResult);
         } catch (Exception e) {
             content = "{}";
         }

@@ -22,9 +22,9 @@ Get-Content $envFile | ForEach-Object {
 
 $env:QUARKUS_PROFILE = 'prod'
 
-# El sistema tiene JAVA_HOME apuntando a JDK 8; Maven/Quarkus requieren JDK 25.
+# El sistema tiene JAVA_HOME apuntando a JDK 8; Maven/Quarkus requieren JDK 21.
 # Se puede sobreescribir con DICEROLLER_JAVA_HOME.
-$env:JAVA_HOME = if ($env:DICEROLLER_JAVA_HOME) { $env:DICEROLLER_JAVA_HOME } else { 'C:\programas\jdk-25.0.2' }
+$env:JAVA_HOME = if ($env:DICEROLLER_JAVA_HOME) { $env:DICEROLLER_JAVA_HOME } else { 'C:\programas\jdk-21.0.10' }
 
 Write-Host "Arrancando Quarkus con perfil prod contra Neon (JAVA_HOME=$env:JAVA_HOME)..."
 & (Join-Path $PSScriptRoot 'mvnw.cmd') quarkus:dev

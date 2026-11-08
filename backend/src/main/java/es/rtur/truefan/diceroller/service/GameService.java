@@ -2,6 +2,7 @@ package es.rtur.truefan.diceroller.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.security.SecureRandom;
@@ -22,6 +23,7 @@ public class GameService {
     @Inject
     ObjectMapper objectMapper;
 
+    @RegisterForReflection
     public static class DiceResult {
         public int count;
         public int initialCount;
@@ -34,6 +36,7 @@ public class GameService {
         public DiceResult() {}
     }
 
+    @RegisterForReflection
     public static class CardInfo {
         public String kind;
         public String suit;
@@ -44,6 +47,7 @@ public class GameService {
         public String shortName;
     }
 
+    @RegisterForReflection
     public static class DrawResult {
         public CardInfo card;
         public int remaining;

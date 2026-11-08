@@ -8,7 +8,7 @@
 
     <properties>
         <compiler-plugin.version>3.16.0</compiler-plugin.version>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
@@ -67,6 +67,10 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-container-image-docker</artifactId>
         </dependency>
 
         <dependency>
@@ -150,16 +154,21 @@
                 <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
                 <skipITs>false</skipITs>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
+                <!-- Quarkus 3.36+ exige GraalVM/Mandrel 25 para native.
+                     El bytecode de la app sigue siendo Java 21 (release 21). -->
+                <quarkus.native.builder-image>quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25</quarkus.native.builder-image>
+                <!-- Al empaquetar nativo, la extensión container-image usa este Dockerfile -->
+                <quarkus.container-image.dockerfile>src/main/docker/Dockerfile.native</quarkus.container-image.dockerfile>
             </properties>
         </profile>
 
         <!--
-            Compila con el JDK 25 definido en ~/.m2/toolchains.xml,
+            Compila con el JDK 21 definido en ~/.m2/toolchains.xml,
             independientemente del JAVA_HOME con el que se ejecute Maven.
             Se activa automáticamente si existe el fichero de toolchains.
         -->
         <profile>
-            <id>toolchain-jdk25</id>
+            <id>toolchain-jdk21</id>
             <activation>
                 <file>
                     <exists>${user.home}/.m2/toolchains.xml</exists>
@@ -181,7 +190,7 @@
                         <configuration>
                             <toolchains>
                                 <jdk>
-                                    <version>25</version>
+                                    <version>21</version>
                                 </jdk>
                             </toolchains>
                         </configuration>
@@ -190,7 +199,7 @@
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
                             <jdkToolchain>
-                                <version>25</version>
+                                <version>21</version>
                             </jdkToolchain>
                         </configuration>
                     </plugin>

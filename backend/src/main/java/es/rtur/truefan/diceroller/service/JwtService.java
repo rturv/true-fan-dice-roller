@@ -1,7 +1,9 @@
 package es.rtur.truefan.diceroller.service;
 
 import io.smallrye.jwt.build.Jwt;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import javax.crypto.Mac;
@@ -14,6 +16,9 @@ import java.util.Base64;
 
 @ApplicationScoped
 public class JwtService {
+
+    @Inject
+    ObjectMapper objectMapper;
 
     @ConfigProperty(name = "diceroller.jwt.secret")
     String secret;
@@ -103,8 +108,7 @@ public class JwtService {
     @SuppressWarnings("unchecked")
     private JwtToken parseClaims(String json) {
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            java.util.Map<String, Object> map = mapper.readValue(json, java.util.Map.class);
+            java.util.Map<String, Object> map = objectMapper.readValue(json, java.util.Map.class);
             JwtToken token = new JwtToken();
             token.nickname = (String) map.get("nick");
             token.roomCode = (String) map.get("roomCode");
