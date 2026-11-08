@@ -35,11 +35,11 @@ import {
           <div class="style-picker">
             <label>Theme</label>
             <select [value]="currentStyle()" (change)="setStyle($any($event.target).value)">
-              <option value="classic">Classic</option>
+              <option value="classic">Clasico</option>
               <option value="alejo">Alejo</option>
               <option value="ocean">Ocean</option>
-              <option value="sunset">Sunset</option>
-              <option value="forest">Forest</option>
+              <option value="sunset">Tardeo</option>
+              <option value="forest">Bosque</option>
               <option value="pergamino">Pergamino</option>
               <option value="sakura">Sakura</option>
               <option value="neon">Neon</option>
@@ -48,7 +48,7 @@ import {
               <option value="halloween">Halloween</option>
               <option value="matrix">Matrix</option>
               <option value="batman">Batman</option>
-              <option value="spaceship">Spaceship</option>
+              <option value="spaceship">Espacial</option>
             </select>
           </div>
           @if (connectedUsers().length > 0) {
