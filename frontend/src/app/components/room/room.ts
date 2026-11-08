@@ -24,7 +24,12 @@ import {
   selector: 'app-room',
   imports: [DatePipe, BackendStatusIndicatorComponent, EasterEggComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { 'class': 'room-page', '(window:keydown)': 'onKeydown($event)' },
+  host: {
+    'class': 'room-page',
+    '(window:keydown)': 'onKeydown($event)',
+    '(window:resize)': 'onResize()',
+    '(document:click)': 'onDocumentClick($event)'
+  },
   template: `
     <header class="app-header">
       <div class="app-header-inner">
@@ -33,7 +38,7 @@ import {
         <div class="header-controls">
           <app-backend-status-indicator />
           <div class="style-picker">
-            <label>Theme</label>
+            <label>Tema</label>
             <select [value]="currentStyle()" (change)="setStyle($any($event.target).value)">
               <option value="classic">Clasico</option>
               <option value="alejo">Alejo</option>
@@ -52,9 +57,37 @@ import {
             </select>
           </div>
           @if (connectedUsers().length > 0) {
-            <div class="user-picker">
-              <label>Players</label>
-              <span class="user-count">{{ connectedUsers().length }}</span>
+            <div class="user-picker-wrap" #playersWrap>
+              <button
+                #playersButton
+                type="button"
+                class="user-picker"
+                (click)="togglePlayers()"
+                [attr.aria-expanded]="playersOpen()"
+                aria-haspopup="true"
+                aria-controls="players-popover"
+                [attr.aria-label]="'Jugadores conectados: ' + connectedUsers().length"
+              >
+                <span class="user-picker-label">Jugadores</span>
+                <span class="user-count">{{ connectedUsers().length }}</span>
+                <span class="user-chevron" aria-hidden="true">▾</span>
+              </button>
+              @if (playersOpen()) {
+                <div class="players-popover" id="players-popover" [style]="playersPopoverStyle()">
+                  <div class="players-popover-title">Jugadores conectados</div>
+                  <ul class="players-list">
+                    @for (user of connectedUsers(); track user) {
+                      <li class="player-item" [class.is-self]="user === myNickname()">
+                        <span class="player-avatar" aria-hidden="true">{{ user.charAt(0).toUpperCase() }}</span>
+                        <span class="player-name">{{ user }}</span>
+                        @if (user === myNickname()) {
+                          <span class="player-you">tú</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
             </div>
           }
           @if (isAdmin()) {
@@ -279,15 +312,26 @@ import {
     .header-controls {
       display: flex; align-items: center; gap: var(--space-3);
     }
+    .user-picker-wrap { position: relative; display: inline-flex; }
     .user-picker, .style-picker {
       display: flex; align-items: center; gap: var(--space-2);
       background: var(--header-surface); border-radius: var(--radius-md);
       border: 1px solid var(--header-border);
       padding: var(--space-1) var(--space-3); backdrop-filter: blur(8px);
     }
-    .user-picker label, .style-picker label {
+    .user-picker {
+      font: inherit; color: var(--header-fg); cursor: pointer; appearance: none;
+      transition: background var(--motion-fast) var(--ease-standard);
+    }
+    .user-picker:hover { background: var(--header-surface-hover); }
+    .user-picker-label, .style-picker label {
       font-size: 12px; color: var(--header-fg-muted); font-weight: 500; white-space: nowrap;
     }
+    .user-chevron {
+      font-size: 10px; line-height: 1; color: var(--header-fg-muted);
+      transition: transform var(--motion-fast) var(--ease-standard);
+    }
+    .user-picker[aria-expanded='true'] .user-chevron { transform: rotate(180deg); }
     .style-picker select {
       background: transparent; border: 1px solid var(--header-border);
       color: var(--header-fg); border-radius: var(--radius-sm);
@@ -299,6 +343,44 @@ import {
     .style-picker select option { color: var(--fg); background: var(--bg); }
     .user-count {
       font-family: var(--font-mono); font-size: 13px; color: var(--header-fg); font-weight: 700;
+    }
+
+    /* Players popover */
+    .players-popover {
+      position: fixed; z-index: 60;
+      min-width: 180px; max-width: 260px;
+      background: var(--bg); color: var(--fg);
+      border: 1px solid var(--border); border-radius: var(--radius-md);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+      padding: var(--space-2);
+      animation: popover-in 140ms var(--ease-standard);
+    }
+    .players-popover-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--meta); padding: 2px 8px 6px;
+    }
+    .players-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+    .player-item {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: 6px 8px; border-radius: var(--radius-sm); font-size: 13px;
+    }
+    .player-item:hover { background: var(--surface); }
+    .player-item.is-self { font-weight: 600; }
+    .player-avatar {
+      width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto;
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      background: color-mix(in oklab, var(--accent) 18%, var(--surface));
+      color: var(--accent);
+    }
+    .player-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .player-you {
+      margin-left: auto; font-family: var(--font-mono); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent);
+    }
+    @keyframes popover-in {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     /* Cards toggle */
@@ -673,8 +755,12 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected entries = signal<ChatDisplayEntry[]>([]);
   protected connectedUsers = signal<string[]>([]);
   protected currentStyle = signal('classic');
+  protected playersOpen = signal(false);
+  protected playersPopoverStyle = signal<Record<string, string>>({});
 
   private chatLogEl = viewChild<ElementRef<HTMLElement>>('chatLog');
+  private playersButton = viewChild<ElementRef<HTMLButtonElement>>('playersButton');
+  private playersWrap = viewChild<ElementRef<HTMLElement>>('playersWrap');
   private entryCounter = 0;
   private cleanupFns: (() => void)[] = [];
 
@@ -1065,7 +1151,49 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  protected togglePlayers(): void {
+    const open = !this.playersOpen();
+    this.playersOpen.set(open);
+    if (open) this.positionPlayersPopover();
+  }
+
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.playersOpen()) return;
+    const wrap = this.playersWrap()?.nativeElement;
+    if (wrap && !wrap.contains(event.target as Node)) {
+      this.playersOpen.set(false);
+    }
+  }
+
+  protected onResize(): void {
+    if (this.playersOpen()) this.positionPlayersPopover();
+  }
+
+  /** Keeps the popover anchored to the pill and inside the viewport. */
+  private positionPlayersPopover(): void {
+    const button = this.playersButton()?.nativeElement;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const width = Math.min(260, window.innerWidth - 24);
+    const left = Math.min(
+      Math.max(12, rect.right - width),
+      window.innerWidth - 12 - width
+    );
+
+    this.playersPopoverStyle.set({
+      top: `${Math.round(rect.bottom + 8)}px`,
+      left: `${Math.round(left)}px`,
+      width: `${Math.round(width)}px`
+    });
+  }
+
   protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.playersOpen()) {
+      this.playersOpen.set(false);
+      return;
+    }
+
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
     if (event.key === '[' && !event.ctrlKey && !event.metaKey) {

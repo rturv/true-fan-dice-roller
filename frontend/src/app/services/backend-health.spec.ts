@@ -99,6 +99,7 @@ describe('BackendHealthService', () => {
     service.start();
     service.start();
     expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 15_000);
 
     service.stop();
     expect(clearIntervalSpy).not.toHaveBeenCalled();
