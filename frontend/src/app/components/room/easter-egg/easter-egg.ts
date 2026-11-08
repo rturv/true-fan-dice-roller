@@ -5,7 +5,6 @@ import {
   OnInit,
   input,
   output,
-  signal,
 } from '@angular/core';
 import type { EasterEggEffect } from './rotation';
 
@@ -50,62 +49,58 @@ const RANKS = ['1', '3', '7', '12'];
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="egg" [attr.data-effect]="effect()" aria-hidden="true">
-      @if (reduced()) {
-        <div class="reduced-toast">RTUR MODE</div>
-      } @else {
-        @switch (effect()) {
-          @case ('glitch-dice') {
-            <div class="glitch"></div>
-            @for (die of dice; track $index) {
-              <span
-                class="falling-die"
-                [style.--x]="die.left + '%'"
-                [style.animation-delay.ms]="die.delay"
-                [style.animation-duration.ms]="die.duration"
-                >{{ die.value }}</span
-              >
-            }
+      @switch (effect()) {
+        @case ('glitch-dice') {
+          <div class="glitch"></div>
+          @for (die of dice; track $index) {
+            <span
+              class="falling-die"
+              [style.--x]="die.left + '%'"
+              [style.animation-delay.ms]="die.delay"
+              [style.animation-duration.ms]="die.duration"
+              >{{ die.value }}</span
+            >
           }
-          @case ('giant-die') {
-            <div class="giant-die">
-              @for (pip of giantPips; track $index) {
-                <span class="pip" [class.on]="pip"></span>
-              }
+        }
+        @case ('giant-die') {
+          <div class="giant-die">
+            @for (pip of giantPips; track $index) {
+              <span class="pip" [class.on]="pip"></span>
+            }
+          </div>
+        }
+        @case ('confetti-cards') {
+          @for (piece of confetti; track $index) {
+            <span
+              class="confetti-piece"
+              [style.left.%]="piece.left"
+              [style.--tx]="piece.tx + 'vw'"
+              [style.--ty]="piece.ty + 'vh'"
+              [style.--rot]="piece.rot + 'deg'"
+              [style.animation-delay.ms]="piece.delay"
+              [style.animation-duration.ms]="piece.duration"
+            ></span>
+          }
+          @for (card of cards; track $index) {
+            <div
+              class="flying-card"
+              [style.--tx]="card.tx + 'vw'"
+              [style.--ty]="card.ty + 'vh'"
+              [style.--rot]="card.rot + 'deg'"
+              [style.animation-delay.ms]="card.delay"
+            >
+              <span class="card-rank">{{ card.rank }}</span>
+              <img [src]="'assets/suits/' + card.suit + '.svg'" alt="" />
             </div>
           }
-          @case ('confetti-cards') {
-            @for (piece of confetti; track $index) {
-              <span
-                class="confetti-piece"
-                [style.left.%]="piece.left"
-                [style.--tx]="piece.tx + 'vw'"
-                [style.--ty]="piece.ty + 'vh'"
-                [style.--rot]="piece.rot + 'deg'"
-                [style.animation-delay.ms]="piece.delay"
-                [style.animation-duration.ms]="piece.duration"
-              ></span>
-            }
-            @for (card of cards; track $index) {
-              <div
-                class="flying-card"
-                [style.--tx]="card.tx + 'vw'"
-                [style.--ty]="card.ty + 'vh'"
-                [style.--rot]="card.rot + 'deg'"
-                [style.animation-delay.ms]="card.delay"
-              >
-                <span class="card-rank">{{ card.rank }}</span>
-                <img [src]="'assets/suits/' + card.suit + '.svg'" alt="" />
-              </div>
-            }
-          }
-          @case ('banner') {
-            <div class="banner">
-              <div class="banner-title">CREATED BY RTURV</div>
-              <div class="banner-marquee">
-                <span>https://github.com/rturv/true-fan-dice-roller</span>
-              </div>
+        }
+        @case ('banner') {
+          <div class="banner">
+            <div class="banner-title">CREATED BY RTURV</div>
+            <div class="banner-marquee">
+              <span>https://github.com/rturv/true-fan-dice-roller</span>
             </div>
-          }
+          </div>
         }
       }
     </div>
@@ -275,29 +270,11 @@ const RANKS = ['1', '3', '7', '12'];
       to { transform: translateX(-110%); }
     }
 
-    .reduced-toast {
-      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      padding: 10px 18px; border-radius: 8px;
-      background: var(--surface); color: var(--fg); border: 1px solid var(--border);
-      font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.08em;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .egg, .glitch, .falling-die, .giant-die,
-      .confetti-piece, .flying-card, .banner, .banner-title, .banner-marquee span {
-        animation: none !important;
-      }
-    }
   `,
 })
 export class EasterEggComponent implements OnInit, OnDestroy {
   readonly effect = input.required<EasterEggEffect>();
   readonly done = output<void>();
-
-  protected readonly reduced = signal(
-    typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
-  );
 
   protected readonly dice: FallingDie[] = Array.from({ length: 30 }, () => ({
     left: 2 + Math.random() * 94,
@@ -329,8 +306,7 @@ export class EasterEggComponent implements OnInit, OnDestroy {
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
-    const duration = this.reduced() ? 1500 : DURATIONS[this.effect()];
-    this.timer = setTimeout(() => this.done.emit(), duration);
+    this.timer = setTimeout(() => this.done.emit(), DURATIONS[this.effect()]);
   }
 
   ngOnDestroy(): void {
