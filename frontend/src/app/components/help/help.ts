@@ -47,6 +47,10 @@ import { RouterLink } from '@angular/router';
           El primero que entra es el <strong>admin</strong> de la sala. No es un puesto de poder, pero
           mola decirlo en voz alta.
         </p>
+        <p class="tip">
+          Si los botones salen apagados y no te dejan hacer nada, mira el chivato de arriba:
+          el backend todavía no está <strong>en línea</strong>. Dale unos segundos y vuelve a intentarlo.
+        </p>
         <p>
           Si tienes amigos con los que querias echar unas tiradas en la misma, le tienes que pasar ese codigo de sala para que entren. Sino tienes amigos tampoco pasa nada, que aqui no juzgamos a nadie.
         </p>
@@ -167,10 +171,17 @@ import { RouterLink } from '@angular/router';
 
       <section class="section">
         <h2>11. SI ALGO PETA</h2>
+        <p>
+          En el lobby y en la cabecera de la sala tienes un chivato con el estado del backend:
+          <strong>Comprobando…</strong>, <strong>Backend en línea</strong> o <strong>Sin conexión</strong>.
+          Con el punto verde, adelante. Si pone "Sin conexión", no entres en pánico: en los hostings
+          gratuitos el backend se echa la siesta y tarda en arrancar. Espera tranquilamente
+          <strong>30-60 segundos</strong>; la app vuelve a comprobar sola cada 15 segundos.
+        </p>
         <ul class="bullets">
-          <li><strong>Punto rojo "Sin conexión":</strong> el backend está despertando o caído. La app reintenta sola.</li>
+          <li><strong>Sigue sin conexión después de un par de minutos:</strong> entonces sí, algo se ha roto. Avisa a quien haya montado el tinglado.</li>
           <li><strong>Recargas la página:</strong> la sesión se recupera si el token no ha caducado (dura 60 minutos).</li>
-          <li><strong>Te sale "Not Found" al refrescar:</strong> es el hosting, no tú. El sitio estático necesita una regla de rewrite; avisa a quien lo haya montado.</li>
+          <li><strong>Te sale "Not Found" al refrescar:</strong> es el hosting, no tú. El sitio estático necesita una regla de rewrite; avisa a quien corresponda.</li>
           <li><strong>El móvil va raro:</strong> prueba a girarlo o a cerrar pestañas. La sala se adapta, pero no hace milagros.</li>
         </ul>
         <figure class="shot narrow">
