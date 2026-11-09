@@ -10,6 +10,10 @@ export const routes: Routes = [
     loadComponent: () => import('./components/room/room').then(m => m.RoomComponent),
   },
   {
+    path: 'ayuda',
+    loadComponent: () => import('./components/help/help').then(m => m.HelpComponent),
+  },
+  {
     path: '**',
     redirectTo: '',
   },

@@ -97,6 +97,7 @@ import {
               <span class="cards-toggle-switch"></span>
             </label>
           }
+          <a class="help-btn" href="/ayuda" target="_blank" rel="noopener" title="Manual de usuario" aria-label="Abrir el manual de usuario">?</a>
           <button class="logout-btn" (click)="doLogout()" title="Salir de la sala">✕</button>
         </div>
       </div>
@@ -287,7 +288,7 @@ import {
       padding: var(--space-4) var(--space-6);
     }
     .app-header-inner {
-      max-width: 960px; margin: 0 auto;
+      max-width: 1200px; margin: 0 auto;
       display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
     }
     .app-logo {
@@ -311,6 +312,7 @@ import {
     .room-code:hover { background: var(--header-surface-hover); }
     .header-controls {
       display: flex; align-items: center; gap: var(--space-3);
+      flex-wrap: wrap; justify-content: flex-end; min-width: 0;
     }
     .user-picker-wrap { position: relative; display: inline-flex; }
     .user-picker, .style-picker {
@@ -409,14 +411,15 @@ import {
     .cards-toggle:hover { background: var(--header-surface-hover); }
 
     /* Logout */
-    .logout-btn {
+    .logout-btn, .help-btn {
       width: 40px; height: 40px; border-radius: var(--radius-sm); border: none;
       background: var(--header-surface); backdrop-filter: blur(8px);
       color: var(--header-fg); font-size: 18px; cursor: pointer;
       display: grid; place-items: center;
-      transition: background var(--motion-fast);
+      transition: background var(--motion-fast); flex-shrink: 0;
     }
-    .logout-btn:hover { background: var(--header-surface-hover); }
+    .help-btn { text-decoration: none; font-family: var(--font-display); font-weight: 700; }
+    .logout-btn:hover, .help-btn:hover { background: var(--header-surface-hover); }
 
     .chat-log {
       flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6);
@@ -699,7 +702,7 @@ import {
 
     /* Below this width the header controls need their own row so the logo can
        stay on a single line (the admin cards toggle makes them too wide). */
-    @media (max-width: 1000px) {
+    @media (max-width: 1240px) {
       .app-header-inner { flex-wrap: wrap; }
       .header-controls { width: 100%; justify-content: flex-end; margin-top: var(--space-2); flex-wrap: wrap; }
     }

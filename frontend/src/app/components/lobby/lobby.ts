@@ -1,12 +1,13 @@
 import { Component, ChangeDetectionStrategy, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { BackendHealthService } from '../../services/backend-health';
 import { BackendStatusIndicatorComponent } from '../backend-status-indicator/backend-status-indicator';
 
 @Component({
   selector: 'app-lobby',
-  imports: [FormsModule, BackendStatusIndicatorComponent],
+  imports: [FormsModule, RouterLink, BackendStatusIndicatorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { 'class': 'lobby-page' },
   template: `
@@ -73,6 +74,8 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
             <div class="lobby-error">{{ errorMessage() }}</div>
           }
         </div>
+
+        <a class="lobby-help" routerLink="/ayuda">¿Cómo se juega? Entra aquí, fenómeno →</a>
       </div>
     </div>
   `,
@@ -147,6 +150,12 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
       padding: 10px 14px; border-radius: 8px; font-size: 13px;
       text-align: center;
     }
+    .lobby-help {
+      display: block; margin-top: 18px; text-align: center;
+      font-size: 13px; font-weight: 600; color: var(--accent);
+      text-decoration: none;
+    }
+    .lobby-help:hover { text-decoration: underline; }
   `
 })
 export class LobbyComponent {
