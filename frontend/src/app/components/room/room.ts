@@ -33,10 +33,24 @@ import {
   template: `
     <header class="app-header">
       <div class="app-header-inner">
-        <span class="app-logo">True Fan Dice Roller</span>
+        <span class="app-logo" title="True Fan Dice Roller">
+          <span class="logo-full">True Fan Dice Roller</span>
+          <span class="logo-abbr">T.F.C.R.</span>
+        </span>
         <span class="room-code" (click)="copyRoomCode()" title="Click para copiar">{{ copied() ? 'Copiado!' : roomCode() }}</span>
-        <div class="header-controls">
-          <app-backend-status-indicator />
+        <div class="header-right" #headerRight>
+        <app-backend-status-indicator compactMobile />
+        <button
+          type="button"
+          class="header-menu-btn"
+          (click)="toggleHeaderMenu()"
+          [attr.aria-expanded]="headerMenuOpen()"
+          aria-haspopup="true"
+          aria-controls="header-menu"
+          aria-label="Menú de la sala"
+          title="Menú"
+        >☰</button>
+        <div class="header-controls" id="header-menu" [class.menu-open]="headerMenuOpen()">
           <div class="style-picker">
             <label>Tema</label>
             <select [value]="currentStyle()" (change)="setStyle($any($event.target).value)">
@@ -96,9 +110,20 @@ import {
               <input type="checkbox" [checked]="cardsEnabled()" (change)="doToggleCards()" />
               <span class="cards-toggle-switch"></span>
             </label>
+            <button class="admin-menu-btn" (click)="doReshuffle()" [disabled]="!backendOnline()" title="Reiniciar Baraja">
+              <span aria-hidden="true">⟳</span>
+              <span class="menu-label">Reiniciar baraja</span>
+            </button>
           }
-          <a class="help-btn" href="/ayuda" target="_blank" rel="noopener" title="Manual de usuario" aria-label="Abrir el manual de usuario">?</a>
-          <button class="logout-btn" (click)="doLogout()" title="Salir de la sala">✕</button>
+          <a class="help-btn" href="/ayuda" target="_blank" rel="noopener" title="Manual de usuario" aria-label="Abrir el manual de usuario" (click)="headerMenuOpen.set(false)">
+            <span aria-hidden="true">?</span>
+            <span class="menu-label">Ayuda</span>
+          </a>
+          <button class="logout-btn" (click)="doLogout()" title="Salir de la sala" aria-label="Salir de la sala">
+            <span aria-hidden="true">✕</span>
+            <span class="menu-label">Salir de la sala</span>
+          </button>
+        </div>
         </div>
       </div>
     </header>
@@ -244,13 +269,13 @@ import {
           <span class="mod-label">±</span>
           <input type="number" [value]="modifier()" (input)="setModifier($any($event.target).value)" min="-99" max="99" placeholder="0" aria-label="Roll modifier" />
         </div>
-        <button class="roll-btn" [class.rolling]="isRolling()" (click)="doRoll()" [disabled]="isRolling() || !wsConnected() || !backendOnline()">
-          <span class="roll-icon"></span>
-          Lanzar
+        <button class="roll-btn" [class.rolling]="isRolling()" (click)="doRoll()" [disabled]="isRolling() || !wsConnected() || !backendOnline()" aria-label="Lanzar dados" title="Lanzar dados">
+          <span class="roll-icon" aria-hidden="true"></span>
+          <span class="btn-label">Lanzar</span>
         </button>
-        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !backendOnline() || !cardsEnabled()" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : ''">
-          <span class="draw-card-icon"></span>
-          ¡Carta!
+        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !backendOnline() || !cardsEnabled()" aria-label="Sacar carta" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : 'Sacar carta'">
+          <span class="draw-card-icon" aria-hidden="true"></span>
+          <span class="btn-label">¡Carta!</span>
         </button>
         @if (isAdmin()) {
           <button class="admin-btn" (click)="doReshuffle()" [disabled]="!backendOnline()" title="Reiniciar Baraja">⟳</button>
@@ -303,6 +328,7 @@ import {
       background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
       border-radius: 4px;
     }
+    .logo-abbr { display: none; }
     .room-code {
       font-family: var(--font-mono); font-size: 14px; color: var(--header-fg);
       background: var(--header-surface); padding: 4px 12px; border-radius: 6px;
@@ -310,10 +336,21 @@ import {
       user-select: all; transition: background var(--motion-fast);
     }
     .room-code:hover { background: var(--header-surface-hover); }
+    .header-right {
+      display: flex; align-items: center; gap: var(--space-3);
+      min-width: 0;
+    }
     .header-controls {
       display: flex; align-items: center; gap: var(--space-3);
       flex-wrap: wrap; justify-content: flex-end; min-width: 0;
     }
+    .header-menu-btn {
+      display: none; width: 40px; height: 40px; border-radius: var(--radius-sm);
+      border: none; background: var(--header-surface); color: var(--header-fg);
+      font-size: 18px; cursor: pointer; place-items: center; flex-shrink: 0;
+    }
+    .menu-label { display: none; }
+    .admin-menu-btn { display: none; }
     .user-picker-wrap { position: relative; display: inline-flex; }
     .user-picker, .style-picker {
       display: flex; align-items: center; gap: var(--space-2);
@@ -704,7 +741,8 @@ import {
        stay on a single line (the admin cards toggle makes them too wide). */
     @media (max-width: 1240px) {
       .app-header-inner { flex-wrap: wrap; }
-      .header-controls { width: 100%; justify-content: flex-end; margin-top: var(--space-2); flex-wrap: wrap; }
+      .header-right { width: 100%; justify-content: flex-end; margin-top: var(--space-2); }
+      .header-controls { width: auto; justify-content: flex-end; flex-wrap: wrap; }
     }
 
     @media (max-width: 600px) {
@@ -717,6 +755,88 @@ import {
       .controls-inner { gap: var(--space-3); flex-wrap: wrap; }
       .spanish-card { width: 88px; min-height: 128px; }
       .card-copy { min-width: 0; flex: 1; }
+    }
+
+    /* Modo compacto para moviles, incluido el movil en horizontal (pantallas
+       anchas pero de poca altura). En escritorio no se aplica. */
+    @media (max-width: 600px), (max-width: 1000px) and (max-height: 520px) {
+      .logo-full { display: none; }
+      .logo-abbr { display: inline; }
+
+      /* Cabecera en una sola fila: el resto de opciones van al menu. */
+      .app-header { padding: var(--space-2) var(--space-3); }
+      .app-header-inner { flex-wrap: nowrap; gap: var(--space-2); }
+      .header-right { position: relative; gap: var(--space-2); flex-shrink: 0; width: auto; margin-top: 0; }
+      .room-code { flex: 0 0 auto; white-space: nowrap; letter-spacing: 0.06em; padding: 3px 9px; }
+      .header-menu-btn { display: grid; }
+      .header-controls {
+        display: none;
+        position: absolute; top: calc(100% + 8px); right: 0;
+        width: min(260px, calc(100vw - 24px));
+        flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+        justify-content: flex-start; gap: 6px;
+        margin-top: 0; padding: var(--space-2);
+        background: var(--header-bg); color: var(--header-fg);
+        border: 1px solid var(--header-border); border-radius: var(--radius-md);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+        z-index: 55;
+      }
+      .header-controls.menu-open { display: flex; }
+      .header-controls .style-picker,
+      .header-controls .user-picker-wrap,
+      .header-controls .cards-toggle { width: 100%; }
+      .header-controls .style-picker select { flex: 1; }
+      .header-controls .user-picker { width: 100%; }
+      .header-controls .cards-toggle { justify-content: space-between; }
+      .header-controls .admin-menu-btn {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        height: 36px; padding: 0 10px; cursor: pointer;
+        border: 1px solid var(--header-border); border-radius: var(--radius-sm);
+        background: var(--header-surface); color: var(--header-fg);
+        font: inherit; font-size: 16px;
+      }
+      .header-controls .help-btn,
+      .header-controls .logout-btn {
+        width: 100%; height: 36px; display: flex; align-items: center;
+        justify-content: flex-start; gap: 8px; padding: 0 10px;
+      }
+      .header-controls .menu-label { display: inline; font-size: 13px; }
+
+      /* Pie en una sola fila, sin la etiqueta "Reserva". */
+      .controls-inner { flex-wrap: nowrap; gap: 4px; }
+      .pool-control { flex: 0 0 auto; gap: 2px; }
+      .pool-label { display: none; }
+      .pool-value-wrap { gap: 1px; }
+      .pool-btn { width: 22px; height: 26px; font-size: 13px; }
+      .pool-value { font-size: 17px; min-width: 18px; }
+      .pool-edit-btn { width: 20px; height: 22px; font-size: 12px; }
+      .dice-counter { flex: 0 0 auto; gap: 0; padding: 2px; }
+      .dice-counter button { width: 26px; height: 32px; font-size: 16px; }
+      .dice-counter .count-label { font-size: 17px; min-width: 22px; }
+      .dice-counter .dice-label { font-size: 11px; padding-right: 4px; }
+      .modifier-control { flex: 0 0 auto; gap: 0; padding: 2px 4px; }
+      .modifier-control .mod-label { display: none; }
+      .modifier-control input { width: 42px; height: 32px; font-size: 14px; padding: 0 2px; }
+      .roll-btn, .draw-card-btn { height: 40px; }
+      .btn-label { display: none; }
+      .roll-btn { flex: 1 1 40px; min-width: 40px; padding: 0; }
+      .draw-card-btn { flex: 0 0 44px; width: 44px; padding: 0; }
+      .admin-btn { display: none; }
+    }
+
+    /* Moviles estrechos: mantiene cabecera y pie en una sola fila. */
+    @media (max-width: 380px) {
+      .app-header { padding: var(--space-2); }
+      .app-header-inner { gap: 4px; }
+      .app-logo { font-size: 20px; }
+      .room-code { font-size: 12px; letter-spacing: 0.04em; padding: 2px 7px; }
+      .status-pill { font-size: 11px; padding: 3px 7px; gap: 4px; }
+      .header-menu-btn { width: 34px; height: 34px; font-size: 16px; }
+      .controls-inner { gap: 2px; }
+      .pool-btn { width: 20px; }
+      .pool-edit-btn { width: 16px; }
+      .dice-counter button { width: 22px; }
+      .modifier-control input { width: 36px; }
     }
     .fade-in { animation: fadeIn 300ms var(--ease-standard); }
     @keyframes fadeIn {
@@ -759,11 +879,13 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected connectedUsers = signal<string[]>([]);
   protected currentStyle = signal('classic');
   protected playersOpen = signal(false);
+  protected headerMenuOpen = signal(false);
   protected playersPopoverStyle = signal<Record<string, string>>({});
 
   private chatLogEl = viewChild<ElementRef<HTMLElement>>('chatLog');
   private playersButton = viewChild<ElementRef<HTMLButtonElement>>('playersButton');
   private playersWrap = viewChild<ElementRef<HTMLElement>>('playersWrap');
+  private headerRight = viewChild<ElementRef<HTMLElement>>('headerRight');
   private entryCounter = 0;
   private cleanupFns: (() => void)[] = [];
 
@@ -1080,11 +1202,13 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
   protected doReshuffle(): void {
     if (!this.backendOnline()) return;
+    this.headerMenuOpen.set(false);
     this.ws.send({ type: 'reshuffle_deck' });
   }
 
   protected doToggleCards(): void {
     if (!this.backendOnline()) return;
+    this.headerMenuOpen.set(false);
     this.ws.send({ type: 'toggle_cards' });
   }
 
@@ -1160,11 +1284,25 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     if (open) this.positionPlayersPopover();
   }
 
+  protected toggleHeaderMenu(): void {
+    this.headerMenuOpen.update(open => !open);
+    if (!this.headerMenuOpen()) this.playersOpen.set(false);
+  }
+
   protected onDocumentClick(event: MouseEvent): void {
-    if (!this.playersOpen()) return;
-    const wrap = this.playersWrap()?.nativeElement;
-    if (wrap && !wrap.contains(event.target as Node)) {
-      this.playersOpen.set(false);
+    const target = event.target as Node;
+    if (this.playersOpen()) {
+      const wrap = this.playersWrap()?.nativeElement;
+      if (wrap && !wrap.contains(target)) {
+        this.playersOpen.set(false);
+      }
+    }
+    if (this.headerMenuOpen()) {
+      const right = this.headerRight()?.nativeElement;
+      if (right && !right.contains(target)) {
+        this.headerMenuOpen.set(false);
+        this.playersOpen.set(false);
+      }
     }
   }
 
@@ -1192,9 +1330,12 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && this.playersOpen()) {
-      this.playersOpen.set(false);
-      return;
+    if (event.key === 'Escape') {
+      if (this.playersOpen() || this.headerMenuOpen()) {
+        this.playersOpen.set(false);
+        this.headerMenuOpen.set(false);
+        return;
+      }
     }
 
     const target = event.target as HTMLElement;
@@ -1209,6 +1350,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   protected doLogout(): void {
+    this.headerMenuOpen.set(false);
     this.clearSession();
     this.ws.disconnect();
     this.router.navigate(['/']);
@@ -1312,6 +1454,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     this.currentStyle.set(style);
     document.documentElement.setAttribute('data-style', style);
     localStorage.setItem('diced-style', style);
+    this.headerMenuOpen.set(false);
   }
 
   /** Keep in sync with the <option> list and the blocks in styles.scss. */

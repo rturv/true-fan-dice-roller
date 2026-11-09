@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, OnDestroy, computed, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, OnDestroy, computed, inject, input, booleanAttribute } from '@angular/core';
 import { BackendHealthService } from '../../services/backend-health';
 
 /**
@@ -8,6 +8,9 @@ import { BackendHealthService } from '../../services/backend-health';
 @Component({
   selector: 'app-backend-status-indicator',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.compact-mobile]': 'compactMobile()',
+  },
   template: `
     <span
       class="status-pill"
@@ -69,10 +72,18 @@ import { BackendHealthService } from '../../services/backend-health';
       0%, 100% { opacity: 0.35; }
       50% { opacity: 1; }
     }
+    /* En movil (tambien en horizontal) oculta el texto cuando hay conexion,
+       dejando el pill con la bolita verde. Offline/checking mantienen el texto. */
+    @media (max-width: 600px), (max-width: 1000px) and (max-height: 520px) {
+      :host(.compact-mobile) .status-pill.online .status-text { display: none; }
+    }
   `,
 })
 export class BackendStatusIndicatorComponent implements OnInit, OnDestroy {
   private readonly health = inject(BackendHealthService);
+
+  /** Colapsa el indicador a solo la bolita cuando el backend esta en linea. */
+  readonly compactMobile = input(false, { transform: booleanAttribute });
 
   protected readonly status = this.health.status;
 
