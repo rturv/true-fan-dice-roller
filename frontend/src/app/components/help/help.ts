@@ -13,7 +13,7 @@ import { RouterLink } from '@angular/router';
       </nav>
 
       <header class="hero">
-        <h1>MANUAL</h1>
+        <h1>TRUE FAN ROLL DICE: EL MANUAL</h1>
         <p class="lead">
           Todo lo que necesitas para no hacer el ridículo en tu primera partida. En la segunda
           tampoco prometemos nada.
@@ -32,7 +32,7 @@ import { RouterLink } from '@angular/router';
           <figcaption>La puerta de entrada. No muerde.</figcaption>
         </figure>
         <p>
-          Aqui entra lo justito, justito, para poder hacer tiradas para el True Fan Dice System: https://shadowlands.es/fh-true-fan-system/. Las risas y el buen rollo las teneis que traer de casa.
+          Aqui entra lo justito, justito, para poder hacer tiradas para el <a href="https://shadowlands.es/fh-true-fan-system/">True Fan Dice System</a>. Las risas y el buen rollo las teneis que traer de casa.
         </p>
       </section>
 
@@ -47,8 +47,8 @@ import { RouterLink } from '@angular/router';
           El primero que entra es el <strong>admin</strong> de la sala. No es un puesto de poder, pero
           mola decirlo en voz alta.
         </p>
-        <p class="tip">
-          Si tienes amigos con los que querias ehcar unas tiradas en la misma, le tienes que pasar ese codigo de sala para que entren. Sino tienes amigos tampoco pasa nada, que aqui no juzgamos a nadie.
+        <p>
+          Si tienes amigos con los que querias echar unas tiradas en la misma, le tienes que pasar ese codigo de sala para que entren. Sino tienes amigos tampoco pasa nada, que aqui no juzgamos a nadie.
         </p>
       </section>
 
@@ -56,7 +56,7 @@ import { RouterLink } from '@angular/router';
         <h2>3. TE HAN PASADO UN CÓDIGO</h2>
         <p>
           Nickname + código + <strong>Unirse a Sala</strong>. Ya está. No hay registro, no hay correo,
-          no hay "verifica tu cuenta". Entras y punto que tampoco esto es la NASA.
+          no hay "verifica tu cuenta". Entras y punto, que tampoco es que esto sea la NASA.
         </p>
       </section>
 
