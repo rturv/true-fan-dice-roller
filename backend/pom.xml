@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>es.rtur.truefan.diceroller</groupId>
     <artifactId>dice-roller-ws</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1</version>
     <packaging>quarkus</packaging>
 
     <properties>
