@@ -173,7 +173,7 @@ La imagen es multi-stage (`node:22-alpine` → `nginx:1.27-alpine`) y la URL del
 
 ```bash
 cd backend
-docker build -t dice-roller-backend:jvm .
+docker build -t true-fan-dice-roller-ws:jvm .
 ```
 
 El Dockerfile multi-stage compila con Maven y deja una imagen final con JDK 21.
@@ -189,7 +189,7 @@ docker run -d \
   -e DB_PASSWORD=secreta \
   -e JWT_SECRET="clave-hmac-de-al-menos-32-caracteres!!" \
   --name dice-back \
-  dice-roller-backend:jvm
+  true-fan-dice-roller-ws:jvm
 ```
 
 #### Backend — Imagen nativa
@@ -199,7 +199,7 @@ Requiere Docker para compilar en contenedor. Quarkus 3.36+ necesita GraalVM/Mand
 ```bash
 cd backend
 mvn package -Pnative -Dquarkus.native.container-build=true -DskipTests
-docker build -f src/main/docker/Dockerfile.native -t dice-roller-backend:native .
+docker build -f src/main/docker/Dockerfile.native -t true-fan-dice-roller-ws:native .
 ```
 
 ```bash
@@ -210,12 +210,28 @@ docker run -d \
   -e DB_USER=postgres \
   -e DB_PASSWORD=postgres \
   --name dice-back-native \
-  dice-roller-backend:native
+  true-fan-dice-roller-ws:native
 ```
 
 La imagen nativa arranca en **milisegundos** y consume mucha menos RAM.
 
-> Guía completa del build nativo y publicación en GHCR (`ghcr.io/rturv/dice-roller-backend`): [`docs/backend-native-image.md`](docs/backend-native-image.md).
+> Guía completa del build nativo y publicación en GHCR (`ghcr.io/rturv/true-fan-dice-roller-ws`): [`docs/backend-native-image.md`](docs/backend-native-image.md).
+
+#### Publicación automática en GHCR
+
+El workflow [`.github/workflows/release-images.yml`](.github/workflows/release-images.yml) compila y publica las dos imágenes al empujar un tag de versión:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+| Imagen | Contenido |
+|---|---|
+| `ghcr.io/rturv/true-fan-dice-roller-web` | Frontend Angular servido por nginx |
+| `ghcr.io/rturv/true-fan-dice-roller-ws` | Backend Quarkus **nativo** |
+
+Se publican las etiquetas `1.0.0`, `1.0` y `latest` (esta última solo en releases estables, sin guion en el tag). Usa el `GITHUB_TOKEN` del propio workflow, así que no hay que configurar ningún secret. Para probar el pipeline sin publicar versión: Actions → *Release images* → *Run workflow* (publica solo `sha-<short>`).
 
 ### Docker Compose completo (ejemplo)
 
@@ -233,7 +249,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   backend:
-    image: dice-roller-backend:native
+    image: ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0
     ports:
       - "8080:8080"
     environment:
@@ -245,7 +261,7 @@ services:
       - postgres
 
   frontend:
-    image: dice-roller-frontend
+    image: ghcr.io/rturv/true-fan-dice-roller-web:1.0.0
     ports:
       - "80:80"
     environment:
@@ -384,7 +400,7 @@ Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
 ├── open-design/                          # Diseño visual y especificación
 ├── docker-compose.desa.yml               # Compose de desarrollo (H2)
 ├── docker-compose.prod.yml               # Compose de producción (PostgreSQL)
-└── .github/workflows/deploy-pages.yml    # Despliegue en GitHub Pages
+└── .github/workflows/release-images.yml  # Build y push de ambas imágenes a GHCR
 ```
 
 ---

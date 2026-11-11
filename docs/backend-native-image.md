@@ -3,19 +3,20 @@
 El backend se publica como una **imagen Docker con el ejecutable nativo de Quarkus** (sin JVM) y se guarda en GitHub Container Registry:
 
 ```text
-ghcr.io/rturv/dice-roller-backend:1.0.0
+ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0
 ```
 
-La imagen se compila y publica **manualmente desde una máquina local**, sin pipelines de CI/CD. Este documento describe el proceso completo para reproducirla, actualizarla y desplegarla.
+La publicación está **automatizada** con GitHub Actions (`.github/workflows/release-images.yml`): al empujar un tag `vX.Y.Z` se compila el nativo y se sube la imagen. Este documento describe ese pipeline y, además, el proceso manual equivalente para reproducirlo en local.
 
 ---
 
 ## Índice
 
+- [Publicación automática (GitHub Actions)](#publicación-automática-github-actions)
 - [Cómo se construye](#cómo-se-construye)
 - [Requisitos](#requisitos)
 - [1. Build nativo e imagen](#1-build-nativo-e-imagen)
-- [2. Publicar en GHCR](#2-publicar-en-ghcr)
+- [2. Publicar en GHCR (manual)](#2-publicar-en-ghcr-manual)
 - [3. Ejecutar la imagen](#3-ejecutar-la-imagen)
 - [4. Desplegar en Render](#4-desplegar-en-render)
 - [Verificación](#verificación)
@@ -25,22 +26,56 @@ La imagen se compila y publica **manualmente desde una máquina local**, sin pip
 
 ---
 
+## Publicación automática (GitHub Actions)
+
+El workflow [`.github/workflows/release-images.yml`](../.github/workflows/release-images.yml) publica las dos imágenes en GHCR al empujar un tag de versión:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+| Imagen | Contenido |
+|---|---|
+| `ghcr.io/rturv/true-fan-dice-roller-ws` | Backend Quarkus **nativo** (este documento) |
+| `ghcr.io/rturv/true-fan-dice-roller-web` | Frontend Angular servido por nginx |
+
+Qué hace el job `Backend (nativo)`:
+
+1. `actions/setup-java` instala JDK 21 y cachea `~/.m2`.
+2. `./mvnw clean package -Pnative -DskipTests -Dquarkus.native.container-build=true` compila el bytecode en el runner y ejecuta `native-image` dentro del builder image Mandrel 25 definido en el `pom.xml`.
+3. `docker/build-push-action` empaqueta el binario `target/*-runner` con `Dockerfile.native` y lo sube a GHCR con las etiquetas derivadas del tag.
+
+Etiquetas publicadas para el tag `v1.2.3`:
+
+| Etiqueta | Uso |
+|---|---|
+| `1.2.3` | Versión exacta (recomendada para producción) |
+| `1.2` | Última revisión de la serie 1.2 |
+| `latest` | Solo en releases estables (tag sin guion, p. ej. `v1.2.3`) |
+
+`workflow_dispatch` (Actions → *Release images* → *Run workflow*) permite probar el pipeline sin publicar versión: en ese caso solo se sube `sha-<short>`.
+
+> El runner `ubuntu-latest` trae Docker Engine funcionando, por eso `container-build=true` y el `docker build` posterior funcionan sin configuración adicional. Los runners son efímeros: el builder image de Mandrel se descarga en cada ejecución (1-2 min extra).
+
+---
+
 ## Cómo se construye
 
 ```mermaid
 flowchart LR
-    Src["Código backend<br/>Java 21"] --> Mvn["mvn clean package -Pnative<br/>container-build + container-image"]
-    Mvn --> Img["Imagen local<br/>dice-roller-backend:native"]
-    Img --> GHCR["ghcr.io/rturv/dice-roller-backend:1.0.0"]
+    Tag["git push origin v1.0.0"] --> CI["GitHub Actions<br/>release-images.yml"]
+    CI --> Mvn["JDK 21 + mvn package -Pnative<br/>native-image en contenedor Mandrel 25"]
+    Mvn --> Bin["target/*-runner<br/>binario ELF x86-64"]
+    Bin --> Img["docker build<br/>Dockerfile.native"]
+    Img --> GHCR["ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0"]
     GHCR --> Run["Render / docker run"]
     Run --> PG[("PostgreSQL")]
 ```
 
 - El perfil Maven `native` activa `quarkus.native.enabled=true`, desactiva el JAR y apunta al builder image Mandrel 25.
-- `-Dquarkus.native.container-build=true` compila el binario Linux **dentro de un contenedor**, así que no hace falta instalar GraalVM localmente.
-- `-Dquarkus.container-image.build=true` hace que la extensión `quarkus-container-image-docker` construya la imagen Docker usando `src/main/docker/Dockerfile.native` (configurado en el perfil `native` del `pom.xml`).
-- `-Dquarkus.container-image.image=dice-roller-backend:native` fija el nombre y la etiqueta de la imagen local.
-- **No hay un `docker build` separado**: el build nativo y la imagen salen del mismo comando.
+- `-Dquarkus.native.container-build=true` compila el binario Linux **dentro de un contenedor**, así que no hace falta instalar GraalVM ni en local ni en el runner.
+- En CI el empaquetado es un `docker build -f src/main/docker/Dockerfile.native`. En local puedes hacerlo todo en un comando con `-Dquarkus.container-image.build=true` (ver [sección 1](#1-build-nativo-e-imagen)).
 - El resultado intermedio es un binario Linux en `target/*-runner`; `Dockerfile.native` lo empaqueta sobre `ubi9/ubi-minimal` y lo ejecuta como usuario `1001`.
 - El bytecode de la aplicación sigue siendo **Java 21** (`maven.compiler.release=21`); Mandrel 25 es solo el compilador nativo.
 
@@ -75,7 +110,7 @@ mvn clean package -Pnative `
   "-Dquarkus.native.container-build=true" `
   -DskipTests `
   "-Dquarkus.container-image.build=true" `
-  "-Dquarkus.container-image.image=dice-roller-backend:native"
+  "-Dquarkus.container-image.image=true-fan-dice-roller-ws:native"
 ```
 
 ```bash
@@ -85,13 +120,13 @@ mvn clean package -Pnative \
   -Dquarkus.native.container-build=true \
   -DskipTests \
   -Dquarkus.container-image.build=true \
-  -Dquarkus.container-image.image=dice-roller-backend:native
+  -Dquarkus.container-image.image=true-fan-dice-roller-ws:native
 ```
 
 También se puede escribir en una sola línea:
 
 ```bash
-mvn clean package -Pnative "-Dquarkus.native.container-build=true" -DskipTests "-Dquarkus.container-image.build=true" "-Dquarkus.container-image.image=dice-roller-backend:native"
+mvn clean package -Pnative "-Dquarkus.native.container-build=true" -DskipTests "-Dquarkus.container-image.build=true" "-Dquarkus.container-image.image=true-fan-dice-roller-ws:native"
 ```
 
 Qué hace cada flag:
@@ -103,19 +138,19 @@ Qué hace cada flag:
 | `-Dquarkus.native.container-build=true` | Compila el binario Linux dentro de un contenedor (obligatorio en Windows) |
 | `-DskipTests` | Omite los tests para acelerar |
 | `-Dquarkus.container-image.build=true` | Construye la imagen Docker con la extensión `container-image` |
-| `-Dquarkus.container-image.image=dice-roller-backend:native` | Nombre y etiqueta de la imagen local |
+| `-Dquarkus.container-image.image=true-fan-dice-roller-ws:native` | Nombre y etiqueta de la imagen local |
 
 Al terminar deben existir:
 
 ```text
 backend/target/dice-roller-ws-1.0.0-SNAPSHOT-runner   # binario nativo
-dice-roller-backend:native                            # imagen Docker local
+true-fan-dice-roller-ws:native                       # imagen Docker local
 ```
 
 Compruébalo:
 
 ```bash
-docker images dice-roller-backend
+docker images true-fan-dice-roller-ws
 ```
 
 Notas:
@@ -130,18 +165,20 @@ Si prefieres separar los pasos:
 
 ```bash
 mvn clean package -Pnative -Dquarkus.native.container-build=true -DskipTests
-docker build -f src/main/docker/Dockerfile.native -t dice-roller-backend:native .
+docker build -f src/main/docker/Dockerfile.native -t true-fan-dice-roller-ws:native .
 ```
 
 Y si construyes desde una máquina ARM (Apple Silicon) para desplegar en `amd64`:
 
 ```bash
-docker build --platform linux/amd64 -f src/main/docker/Dockerfile.native -t dice-roller-backend:native .
+docker build --platform linux/amd64 -f src/main/docker/Dockerfile.native -t true-fan-dice-roller-ws:native .
 ```
 
 ---
 
-## 2. Publicar en GHCR
+## 2. Publicar en GHCR (manual)
+
+> Normalmente **no necesitas esta sección**: el workflow publica la imagen al empujar el tag. Usa estos pasos solo para builds manuales o para probar antes de etiquetar.
 
 1. Crea un **Personal Access Token** de GitHub (classic) con permisos `read:packages` y `write:packages`. No lo guardes en el repositorio.
 
@@ -158,15 +195,15 @@ docker build --platform linux/amd64 -f src/main/docker/Dockerfile.native -t dice
 3. Etiqueta y sube:
 
    ```bash
-   docker tag dice-roller-backend:native ghcr.io/rturv/dice-roller-backend:1.0.0
-   docker push ghcr.io/rturv/dice-roller-backend:1.0.0
+   docker tag true-fan-dice-roller-ws:native ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0
+   docker push ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0
    ```
 
-4. Visibilidad del paquete: en GitHub → **Packages → dice-roller-backend → Package settings**.
+4. Visibilidad del paquete: en GitHub → **Packages → true-fan-dice-roller-ws → Package settings**.
    - **Público**: cualquiera puede hacer `docker pull`.
    - **Privado** (por defecto): el host que despliegue la imagen necesita credenciales de registro.
 
-> El nombre del paquete en GHCR debe ir en minúsculas: `ghcr.io/rturv/dice-roller-backend`.
+> El nombre del paquete en GHCR debe ir en minúsculas: `ghcr.io/rturv/true-fan-dice-roller-ws`.
 
 ---
 
@@ -182,7 +219,7 @@ docker run -d \
   -e DB_PASSWORD=secreta \
   -e JWT_SECRET="clave-hmac-de-al-menos-32-caracteres!!" \
   -e CORS_ORIGINS="https://true-fan-dice-roller.onrender.com" \
-  ghcr.io/rturv/dice-roller-backend:1.0.0
+  ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0
 ```
 
 Variables:
@@ -201,7 +238,7 @@ Variables:
 ## 4. Desplegar en Render
 
 1. **New + → Web Service → Deploy an existing image**.
-2. Image URL: `ghcr.io/rturv/dice-roller-backend:1.0.0`.
+2. Image URL: `ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0`.
 3. Si el paquete es **privado**, añade credenciales de registro:
    - Registry: `ghcr.io`
    - Username: `rturv`
@@ -233,7 +270,7 @@ curl http://localhost:8080/health/ready
 También puedes comprobar la imagen y su tamaño:
 
 ```bash
-docker image inspect ghcr.io/rturv/dice-roller-backend:1.0.0 \
+docker image inspect ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0 \
   --format '{{.Config.ExposedPorts}} {{.Config.User}} {{.Size}}'
 ```
 
@@ -247,22 +284,24 @@ docker logs -f dice-back
 
 ## Actualizar la versión
 
-1. Cambia la etiqueta de la imagen (por ejemplo `1.0.1`) en el build.
-2. Repite el build y súbela a GHCR.
-3. En Render, actualiza la imagen del servicio y redespliega.
+Forma recomendada (automática):
+
+1. Crea y empuja el nuevo tag: `git tag v1.0.1 && git push origin v1.0.1`.
+2. El workflow publica `1.0.1`, `1.0` y `latest`.
+3. En Render, actualiza la imagen del servicio a `ghcr.io/rturv/true-fan-dice-roller-ws:1.0.1` y redespliega.
 4. Mantén una etiqueta mutable (`latest`) solo si te interesa; para producción es mejor una versión fija.
 
-Ejemplo con la nueva etiqueta:
+Forma manual, si prefieres construir en local:
 
 ```bash
 mvn clean package -Pnative \
   -Dquarkus.native.container-build=true \
   -DskipTests \
   -Dquarkus.container-image.build=true \
-  -Dquarkus.container-image.image=dice-roller-backend:1.0.1
+  -Dquarkus.container-image.image=true-fan-dice-roller-ws:1.0.1
 
-docker tag dice-roller-backend:1.0.1 ghcr.io/rturv/dice-roller-backend:1.0.1
-docker push ghcr.io/rturv/dice-roller-backend:1.0.1
+docker tag true-fan-dice-roller-ws:1.0.1 ghcr.io/rturv/true-fan-dice-roller-ws:1.0.1
+docker push ghcr.io/rturv/true-fan-dice-roller-ws:1.0.1
 ```
 
 ---
@@ -274,12 +313,13 @@ docker push ghcr.io/rturv/dice-roller-backend:1.0.1
 | `Cannot connect to the Docker daemon` | Docker no está arrancado | Inicia Docker Desktop/Engine |
 | `Could not find a valid Docker environment` | Maven no puede acceder al daemon de Docker | Arranca Docker y revisa `DOCKER_HOST` |
 | El build termina pero no hay imagen | Faltó `-Dquarkus.container-image.build=true` | Añade el flag o haz el `docker build` manual |
-| No encuentro la imagen local | Se cambió el nombre en `container-image.image` | `docker images \| grep dice-roller-backend` |
+| No encuentro la imagen local | Se cambió el nombre en `container-image.image` | `docker images \| grep true-fan-dice-roller-ws` |
 | El build nativo genera un `.exe` | Se omitió `-Dquarkus.native.container-build=true` | Repite con esa propiedad |
 | `exec format error` al arrancar | Imagen ARM desplegada en amd64 | Construye con `--platform linux/amd64` |
 | `unauthorized` al hacer push | Token sin `write:packages` o sin login | Revisa el PAT y `docker login ghcr.io` |
 | Render no puede hacer pull | Paquete privado sin credenciales | Añade credenciales de registro o hazlo público |
-| `denied: requested access to the resource is denied` | Nombre de imagen con mayúsculas o usuario incorrecto | Usa `ghcr.io/rturv/dice-roller-backend` en minúsculas |
+| `denied: requested access to the resource is denied` | Nombre de imagen con mayúsculas o usuario incorrecto | Usa `ghcr.io/rturv/true-fan-dice-roller-ws` en minúsculas |
+| `denied: permission_denied: write_package` en GitHub Actions | El token del workflow no puede publicar | Revisa `permissions: packages: write` en el workflow y que la política de la organización lo permita |
 | El contenedor arranca pero no responde | Escucha en 8080 y el host espera otro puerto | Define `QUARKUS_HTTP_PORT` |
 | `/health/ready` devuelve 503 | PostgreSQL no accesible o credenciales mal | Revisa `DB_URL`, `DB_USER`, `DB_PASSWORD` y TLS de la base |
 | El build nativo se queda sin memoria | Builder con poca RAM | Aumenta la memoria de Docker o usa una máquina con más recursos |
@@ -302,4 +342,4 @@ Alternativas en el repo:
 - `backend/src/main/docker/Dockerfile.jvm`: imagen JVM con `run-java.sh`.
 - `backend/src/main/docker/Dockerfile.native`: la que se usa para GHCR.
 
-**¿Por qué sin pipeline?** El build nativo es pesado y se hizo manualmente para tener control total sobre la versión publicada. Los comandos de este documento son la fuente de verdad para reproducirlo; si en el futuro se automatiza, se pueden mover tal cual a un workflow.
+**¿Y CI/CD?** El build nativo es pesado, así que hasta ahora se hacía manualmente. Ahora lo automatiza `.github/workflows/release-images.yml`: se dispara con un tag `vX.Y.Z`, compila en el runner (con Docker disponible) y publica `true-fan-dice-roller-ws` y `true-fan-dice-roller-web` en GHCR. Los comandos de este documento siguen siendo la referencia para reproducir el build en local.
