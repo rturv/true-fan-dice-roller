@@ -89,8 +89,8 @@ export class BackendStatusIndicatorComponent implements OnInit, OnDestroy {
 
   protected readonly label = computed(() => {
     switch (this.status()) {
-      case 'online': return 'Backend en línea';
-      case 'offline': return 'Sin conexión';
+      case 'online': return 'En línea';
+      case 'offline': return 'Sin conexión, espere';
       default: return 'Comprobando…';
     }
   });
