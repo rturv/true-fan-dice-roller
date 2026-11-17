@@ -10,6 +10,7 @@ Aplicación tipo chat para lanzar dados d6 (con explosión y modificador) y saca
 
 - [Arquitectura](#arquitectura)
 - [Funcionalidades](#funcionalidades)
+- [Efectos de tirada](#efectos-de-tirada)
 - [Desarrollo local](#desarrollo-local)
 - [Tests](#tests)
 - [Despliegue con Docker](#despliegue-con-docker)
@@ -59,6 +60,119 @@ flowchart LR
 - **Indicador de estado del backend** con comprobación periódica de `/health/ready`.
 - **14 temas visuales** (clásico, Alejo, ocean, tardeo, bosque, pergamino, sakura, neón, playeo, Drácula, Halloween, Matrix, Batman y espacial) que se guardan en el navegador.
 - …y algún secreto más que no vamos a desvelar aquí.
+
+---
+
+## Efectos de tirada
+
+Las tiradas especiales se calculan en el cliente a partir del mismo evento `dice_roll` que recibe toda la sala, así que todos los jugadores ven el mismo resultado. El efecto es solo visual: no altera la tirada, no se guarda y no se reproduce al entrar en la sala.
+
+### Cuándo se disparan
+
+Para una tirada con `n` dados iniciales:
+
+```text
+Σ = diceTotal   suma de todos los dados, incluidas las explosiones, sin modificador
+E = explosions  número de dados extra generados (cada 6 encadena otro dado)
+
+μ = 4.2 · n
+σ = 3.262 · √n
+
+legendaria:  Σ ≥ ceil(μ + 2.5σ)
+pifia:       n ≥ 2 y Σ ≤ max(n, floor(μ − 1.75σ))
+cadena:      E ≥ ceil(0.2n + 2.5 · 0.49√n)
+```
+
+De dónde salen los números:
+
+- Un d6 normal tiene media 3.5. Como cada 6 añade otro dado, la media del d6 explosivo es `3.5 / (1 − 1/6) = 4.2`.
+- La desviación típica del d6 explosivo es aproximadamente `3.262`.
+- El número de explosiones por dado sigue una geométrica con media `0.2` y desviación `0.49`.
+- La distribución tiene una cola derecha más larga, por eso la z de pifia (`1.75`) es menor que la de legendaria (`2.5`): así ambas son raras de forma parecida.
+- El modificador **no cuenta** para disparar el efecto, solo para el total que se muestra en la tirada.
+
+Umbrales para los recuentos más habituales:
+
+| Dados (n) | Legendaria (Σ ≥) | Pifia (Σ ≤) | Cadena (E ≥) | Probabilidad aprox. (L / P / C) |
+|---:|---:|---:|---:|---|
+| 1 | 13 | — | 2 | 2.8 % / — / 2.8 % |
+| 2 | 20 | 2 | 3 | 3.0 % / 2.8 % / 1.6 % |
+| 3 | 27 | 3 | 3 | 2.5 % / 0.5 % / 3.6 % |
+| 4 | 34 | 5 | 4 | 2.0 % / 0.4 % / 1.8 % |
+| 5 | 40 | 8 | 4 | 1.9 % / 0.7 % / 3.1 % |
+| 6 | 46 | 11 | 5 | 1.8 % / 1.0 % / 1.6 % |
+| 10 | 68 | 23 | 6 | 1.7 % / 1.2 % / 2.7 % |
+| 20 | 121 | 58 | 10 | 1.4 % / 2.4 % / 1.5 % |
+
+Las tres condiciones son independientes entre sí: una misma tirada puede ser legendaria y cadena a la vez. La pifia y la cadena no se muestran juntas.
+
+### Ejemplos
+
+**Legendaria con 2 dados**
+
+```text
+valores: [6, 6, 5, 5]
+n = 2, Σ = 22, E = 2
+22 ≥ 20 → legendaria; 2 < 3 → no hay cadena
+```
+
+**Legendaria y cadena a la vez con 2 dados**
+
+```text
+valores: [6, 6, 6, 1, 1]
+n = 2, Σ = 20, E = 3
+20 ≥ 20 → legendaria; 3 ≥ 3 → también cadena
+```
+
+**Legendaria sin cadena con 5 dados**
+
+```text
+valores: [6, 6, 6, 5, 5, 5, 5, 5]
+n = 5 (los cinco primeros), E = 3, Σ = 43
+43 ≥ 40 → legendaria; 3 < 4 → no hay cadena
+```
+
+**Cadena sin legendaria con 5 dados**
+
+```text
+valores: [6, 6, 6, 6, 1, 1, 1, 1, 1]
+n = 5, E = 4, Σ = 29
+29 < 40 → no es legendaria; 4 ≥ 4 → cadena
+```
+
+**Pifia con 5 dados**
+
+```text
+valores: [1, 1, 1, 1, 1]
+n = 5, Σ = 5, E = 0
+5 ≤ 8 → pifia
+```
+
+**El modificador no dispara el efecto**
+
+```text
+valores: [1, 1], modificador: +99
+Σ = 2 (sigue siendo pifia), total mostrado = 101
+```
+
+### Qué se ve
+
+- **Legendaria** y **cadena** → confeti.
+- **Pifia** → lluvia.
+- Los demás jugadores lo ven dentro de la tarjeta de la tirada. Si eres tú quien lanza, el efecto ocupa la pantalla.
+- Los chips (`✦ tirada legendaria`, `✖ pifia`, `⚡ cadena ×N`) quedan en la entrada como registro; las partículas son transitorias.
+
+Comandos ocultos de prueba, locales y sin enviar nada a la sala:
+
+```text
+/fx                    rota legendaria → pifia → cadena
+/fx alta 5             confeti dentro de la tarjeta
+/fx pifia              lluvia dentro de la tarjeta
+/fx cadena             confeti dentro de la tarjeta
+/fx pantalla alta 5    confeti a pantalla completa
+```
+
+La lógica está en `frontend/src/app/components/room/roll-effects.ts` (umbrales y detección) y la capa visual en `frontend/src/app/components/room/roll-effect/roll-effect.ts`.
 
 ---
 
