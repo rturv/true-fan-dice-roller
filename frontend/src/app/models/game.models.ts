@@ -131,6 +131,7 @@ export interface ChatDisplayEntry {
   result?: DiceResult;
   effects?: RollEffectKind[];
   preview?: boolean;
+  previewFullscreen?: boolean;
   card?: CardInfo;
   remaining?: number;
   autoReshuffled?: boolean;

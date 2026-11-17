@@ -12,17 +12,17 @@ export type ChatCommand =
   | { kind: 'draw_card' }
   | { kind: 'roll_current' }
   | { kind: 'roll'; count: number; modifier: number }
-  | { kind: 'preview_effect'; effect: RollEffectKind | null; count: number | null }
+  | { kind: 'preview_effect'; effect: RollEffectKind | null; count: number | null; fullscreen: boolean }
   | { kind: 'easter_egg' };
 
 /** Matches `Nd6`, `Nd6+M` and `Nd6-M` (N is optional, so `d6` means one die). */
 const DICE_PATTERN = /^(\d{0,2})d6(?:\s*([+-])\s*(\d{1,2}))?$/i;
 
 /**
- * Hidden preview command: `/fx`, `/fx alta 5`, `/fx pifia`, `/fx cadena 10`.
- * The optional trailing number sets the dice count for the preview.
+ * Hidden preview command: `/fx`, `/fx alta 5`, `/fx pifia`, `/fx cadena 10`
+ * and the full-screen variant `/fx pantalla alta`.
  */
-const FX_PATTERN = /^fx(?:\s+(alta|legendaria|baja|pifia|cadena|[123]))?(?:\s+(\d{1,2}))?$/i;
+const FX_PATTERN = /^fx(?:\s+(pantalla))?(?:\s+(alta|legendaria|baja|pifia|cadena|[123]))?(?:\s+(\d{1,2}))?$/i;
 
 // Same limits enforced by the backend (GameService).
 const DICE_MIN = 1;
@@ -52,7 +52,7 @@ export function parseChatCommand(raw: string): ChatCommand | null {
     const fx = FX_PATTERN.exec(lower);
     if (!fx) return null;
 
-    const alias = fx[1];
+    const alias = fx[2];
     const effect: RollEffectKind | null =
       alias === 'alta' || alias === 'legendaria' || alias === '1'
         ? 'legendary'
@@ -65,7 +65,8 @@ export function parseChatCommand(raw: string): ChatCommand | null {
     return {
       kind: 'preview_effect',
       effect,
-      count: fx[2] ? Number(fx[2]) : null,
+      count: fx[3] ? Number(fx[3]) : null,
+      fullscreen: fx[1] === 'pantalla',
     };
   }
 

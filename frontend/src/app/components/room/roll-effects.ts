@@ -114,3 +114,15 @@ export function buildPreviewRoll(kind: RollEffectKind, diceCount: number): DiceR
 }
 
 export const PREVIEW_ORDER: RollEffectKind[] = ['legendary', 'fumble', 'chain'];
+
+export type RollVisualEffect = 'confetti' | 'storm';
+
+/**
+ * Maps the semantic roll effects to the visual celebration:
+ * good rolls get confetti, fumbles get a small storm.
+ */
+export function rollVisualEffect(effects: RollEffectKind[] | undefined): RollVisualEffect | null {
+  if (!effects || effects.length === 0) return null;
+  if (effects.includes('fumble')) return 'storm';
+  return 'confetti';
+}

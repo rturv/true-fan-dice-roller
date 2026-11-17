@@ -50,7 +50,7 @@ flowchart LR
 
 - **Salas en tiempo real** con código de 7 caracteres, nickname y sesión firmada con JWT (reconexión automática).
 - **Dados d6 explosivos**: cada 6 genera otra tirada; soporte de modificador y de una reserva compartida (`pool`).
-- **Efectos de tirada**: avisos discretos de tirada legendaria, pifia y cadena de explosiones, visibles para toda la sala con el nick del autor (comando oculto `/fx` para previsualizarlos).
+- **Efectos de tirada**: confeti para las tiradas buenas y lluvia para las pifias, dentro de la tarjeta y a pantalla completa solo para el autor (comando oculto `/fx` para previsualizarlos).
 - **Baraja española** de 50 naipes (incluidos los dos comodines), desactivada por defecto en salas nuevas, con rebarajado automático al salir un comodín o agotarse el mazo.
 - **Chat** con historial reciente, entradas de sistema (altas, bajas, cambios de admin, tiradas y cartas) e historial local de mensajes con `↑`/`↓`.
 - **Comandos de chat**: `/carta`, `/roll` y `/Nd6±M` (por ejemplo `/3d6+3`). Lo que no encaja con un comando se envía como mensaje normal.

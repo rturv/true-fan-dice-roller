@@ -63,7 +63,7 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 | FR3.4 | Resultado final = suma de todos los dados (originales + explosiones) + modificador. |
 | FR3.5 | En el chat log se muestra: usuario, timestamp, iconos de dados individuales (marcando visualmente los de explosión y los que sacaron 6), puntuación total, desglose detallado, y el modificador aplicado si no es 0. |
 | FR3.6 | El mensaje de tirada se etiqueta como "you" para el propio usuario. |
-| FR3.7 | Efectos discretos de tirada, visibles para todos los jugadores y atribuidos al autor: **legendaria** (tirada muy alta), **pifia** (tirada muy baja) y **cadena** (muchas explosiones). |
+| FR3.7 | Efectos de tirada visibles para todos los jugadores y atribuidos al autor: **confeti** en las tiradas buenas (legendaria y cadena) y **lluvia** en las pifias. Se dibujan dentro de la tarjeta de la tirada; el efecto a pantalla completa se reserva al jugador que lanzó. |
 | FR3.8 | Los efectos se calculan en el cliente a partir del payload `dice_roll` (mismo resultado para todos) y no se persisten ni se reproducen al recuperar el historial. |
 | FR3.9 | El cálculo usa `diceTotal` (sin modificador) y `explosions` con umbrales derivados de la distribución del d6 explosivo. Una tirada puede mostrar legendaria y cadena a la vez. |
 
@@ -136,7 +136,7 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 | FR10.5 | `Flecha arriba/abajo` (sin el foco en el campo de chat): ajustar modificador +/- 1. |
 | FR10.6 | `+` / `-`: ajustar cantidad de dados +/- 1. |
 | FR10.7 | En el campo de chat, `Flecha arriba/abajo` recorre el historial local de mensajes y comandos enviados (máx. 50, solo en localStorage, nunca en la base de datos). |
-| FR10.8 | Comando oculto `/fx` para previsualizar localmente los efectos de tirada (`/fx`, `/fx alta`, `/fx pifia`, `/fx cadena`, con número de dados opcional). No se transmite a la sala. |
+| FR10.8 | Comandos ocultos `/fx` para previsualizar localmente los efectos de tirada (`/fx`, `/fx alta`, `/fx pifia`, `/fx cadena`, con número de dados opcional). `/fx pantalla …` previsualiza el efecto a pantalla completa. No se transmite a la sala. |
 
 ### FR11 — Pool de Reserva
 
@@ -333,11 +333,12 @@ El servidor envía un `ping` cada 30 segundos. El cliente debe responder con `po
 - [ ] AC11: Al tirar, veo los dados individuales, explosiones, total y desglose.
 - [ ] AC12: Los demás usuarios ven mi tirada en tiempo real (<500ms).
 - [ ] AC13: Las tiradas se persisten y aparecen al entrar en la sala.
-- [ ] AC13b: Una tirada muy alta muestra el efecto de legendaria con el nick del autor y lo ven todos los jugadores.
-- [ ] AC13c: Una tirada muy baja (2+ dados) muestra el efecto de pifia con el nick del autor.
-- [ ] AC13d: Una tirada con muchas explosiones muestra el efecto de cadena con el nick del autor.
+- [ ] AC13b: Una tirada muy alta muestra confeti dentro de la tarjeta con el nick del autor y lo ven todos los jugadores.
+- [ ] AC13c: Una tirada muy baja (2+ dados) muestra lluvia dentro de la tarjeta y el nick del autor.
+- [ ] AC13d: Una tirada con muchas explosiones muestra confeti con el nick del autor.
 - [ ] AC13e: Los efectos no se reproducen al entrar en la sala ni al recargar el historial.
-- [ ] AC13f: El comando oculto `/fx` permite previsualizar los tres efectos en local.
+- [ ] AC13f: El autor de la tirada ve el efecto a pantalla completa; los demás, dentro de la tarjeta.
+- [ ] AC13g: El comando oculto `/fx` previsualiza los efectos dentro de la tarjeta y `/fx pantalla` a pantalla completa.
 
 ### Sacar Carta
 - [ ] AC14: Al sacar carta, veo la carta renderizada con el diseño español.

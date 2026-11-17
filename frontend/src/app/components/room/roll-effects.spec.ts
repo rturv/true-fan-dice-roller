@@ -5,6 +5,7 @@ import {
   clampDiceCount,
   detectRollEffects,
   rollThresholds,
+  rollVisualEffect,
 } from './roll-effects';
 
 function roll(initialCount: number, diceTotal: number, explosions: number, modifier = 0): DiceResult {
@@ -105,5 +106,23 @@ describe('buildPreviewRoll', () => {
 
     expect(preview.explosions).toBe(0);
     expect(preview.values.every(value => value === 1)).toBe(true);
+  });
+});
+
+describe('rollVisualEffect', () => {
+  it('uses confetti for good rolls', () => {
+    expect(rollVisualEffect(['legendary'])).toBe('confetti');
+    expect(rollVisualEffect(['chain'])).toBe('confetti');
+    expect(rollVisualEffect(['legendary', 'chain'])).toBe('confetti');
+  });
+
+  it('uses the storm for a fumble', () => {
+    expect(rollVisualEffect(['fumble'])).toBe('storm');
+    expect(rollVisualEffect(['fumble', 'chain'])).toBe('storm');
+  });
+
+  it('returns nothing for ordinary rolls', () => {
+    expect(rollVisualEffect([])).toBeNull();
+    expect(rollVisualEffect(undefined)).toBeNull();
   });
 });

@@ -13,7 +13,9 @@ import type {
 } from '../../models/game.models';
 import { parseChatCommand } from './chat-commands';
 import { ChatHistoryStore } from './chat-history';
-import { buildPreviewRoll, detectRollEffects, PREVIEW_ORDER } from './roll-effects';
+import { buildPreviewRoll, detectRollEffects, PREVIEW_ORDER, rollVisualEffect } from './roll-effects';
+import type { RollVisualEffect } from './roll-effects';
+import { RollEffectComponent } from './roll-effect/roll-effect';
 import { EasterEggComponent } from './easter-egg/easter-egg';
 import {
   nextEasterEgg,
@@ -24,7 +26,7 @@ import {
 
 @Component({
   selector: 'app-room',
-  imports: [DatePipe, BackendStatusIndicatorComponent, EasterEggComponent],
+  imports: [DatePipe, BackendStatusIndicatorComponent, EasterEggComponent, RollEffectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'class': 'room-page',
@@ -197,6 +199,11 @@ import {
                   <span class="roll-fx-chip chain">⚡ cadena ×{{ entry.result!.explosions }}</span>
                 }
               </div>
+              @if (visualFx(entry); as fx) {
+                @if ((!entry.isSelf || entry.preview) && !entry.previewFullscreen) {
+                  <app-roll-effect [kind]="fx" />
+                }
+              }
             </div>
           } @else if (entry.type === 'card_draw') {
             <div class="roll-entry fade-in" [class.self-roll]="entry.isSelf">
@@ -348,8 +355,8 @@ import {
       </div>
     }
 
-    @for (fx of rollFxList(); track fx.id) {
-      <div class="roll-fx" [attr.data-kind]="fx.kind" aria-hidden="true"></div>
+    @for (fx of selfFxList(); track fx.id) {
+      <app-roll-effect [kind]="fx.kind" [fullscreen]="true" (done)="onSelfFxDone(fx.id)" />
     }
 
     @if (easterEggActive()) {
@@ -524,6 +531,7 @@ import {
     .chat-log::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 9999px; }
 
     .roll-entry {
+      position: relative; overflow: hidden;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-md); padding: var(--space-4) var(--space-6);
       transition: opacity var(--motion-base) var(--ease-standard);
@@ -576,27 +584,16 @@ import {
 
     /* ---------- Roll effects ---------- */
     .roll-fx-chip {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      padding: 2px 8px; border-radius: var(--radius-pill);
-      border: 1px solid var(--border); background: var(--surface); color: var(--fg);
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--font-mono); font-size: 14px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 0; border: 0; background: none; color: var(--fg);
     }
     .roll-fx-chip.legendary {
-      color: var(--warn);
-      border-color: color-mix(in oklab, var(--warn) 55%, var(--border));
-      background: color-mix(in oklab, var(--warn) 12%, var(--surface));
+      color: color-mix(in oklab, var(--warn) 60%, var(--fg));
     }
-    .roll-fx-chip.fumble {
-      color: var(--danger);
-      border-color: color-mix(in oklab, var(--danger) 55%, var(--border));
-      background: color-mix(in oklab, var(--danger) 10%, var(--surface));
-    }
-    .roll-fx-chip.chain {
-      color: var(--accent);
-      border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
-      background: color-mix(in oklab, var(--accent) 10%, var(--surface));
-    }
+    .roll-fx-chip.fumble { color: var(--danger); }
+    .roll-fx-chip.chain { color: var(--accent); }
 
     .fx-legendary { border-color: var(--warn); animation: legend-glow 1600ms var(--ease-standard); }
     .fx-legendary .die { animation: die-legendary 900ms var(--ease-standard); }
@@ -609,20 +606,6 @@ import {
       background: var(--accent); opacity: 0; pointer-events: none;
       animation: spark-rise 950ms ease-out forwards;
       box-shadow: 0 0 6px color-mix(in oklab, var(--accent) 60%, transparent);
-    }
-
-    .roll-fx {
-      position: fixed; inset: 0; z-index: 800; pointer-events: none;
-      opacity: 0; animation: roll-fx-ambient 1600ms ease-out forwards;
-    }
-    .roll-fx[data-kind='legendary'] {
-      box-shadow: inset 0 0 110px color-mix(in oklab, var(--warn) 60%, transparent);
-    }
-    .roll-fx[data-kind='fumble'] {
-      box-shadow: inset 0 0 110px color-mix(in oklab, var(--danger) 55%, transparent);
-    }
-    .roll-fx[data-kind='chain'] {
-      box-shadow: inset 0 0 110px color-mix(in oklab, var(--accent) 55%, transparent);
     }
 
     @keyframes legend-glow {
@@ -653,15 +636,9 @@ import {
       20% { opacity: 1; }
       100% { opacity: 0; transform: translateY(-44px) scale(0.3); }
     }
-    @keyframes roll-fx-ambient {
-      0% { opacity: 0; }
-      18% { opacity: 1; }
-      100% { opacity: 0; }
-    }
     @media (prefers-reduced-motion: reduce) {
       .fx-legendary, .fx-legendary .die, .fx-fumble, .fx-fumble .die,
       .fx-chain .die, .chain-spark { animation: none !important; }
-      .roll-fx { animation-duration: 900ms; }
     }
 
     .entry-connector {
@@ -722,7 +699,7 @@ import {
       padding: 1px; border: 1px solid var(--border);
     }
     .dice-counter button {
-      width: 44px; height: 44px; border-radius: 50%;
+      width: 44px; height: 44px; border-radius: 10px;
       border: 0;
       background: var(--accent-on);
       color: var(--accent);
@@ -992,7 +969,7 @@ import {
       .pool-value { font-size: 17px; min-width: 18px; }
       .pool-edit-btn { width: 20px; height: 22px; font-size: 12px; }
       .dice-counter { flex: 0 0 auto; gap: 1px; padding: 1px; }
-      .dice-counter button { width: 34px; height: 34px; border-radius: 50%; }
+      .dice-counter button { width: 34px; height: 34px; border-radius: 8px; }
       .dice-step-icon { width: 22px; height: 22px; }
       .dice-counter .count-label { font-size: 18px; min-width: 22px; }
       .dice-counter .dice-label { font-size: 11px; padding-right: 4px; }
@@ -1061,9 +1038,9 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected copied = signal(false);
   protected chatText = signal('');
 
-  protected readonly rollFx = signal<{ kind: RollEffectKind; id: number } | null>(null);
-  protected readonly rollFxList = computed(() => {
-    const fx = this.rollFx();
+  protected readonly selfFx = signal<{ kind: RollVisualEffect; id: number } | null>(null);
+  protected readonly selfFxList = computed(() => {
+    const fx = this.selfFx();
     return fx ? [fx] : [];
   });
   protected readonly sparks = Array.from({ length: 10 }, (_, index) => ({
@@ -1071,8 +1048,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     delay: index * 55,
   }));
 
-  private rollFxId = 0;
-  private rollFxTimer: ReturnType<typeof setTimeout> | null = null;
+  private selfFxId = 0;
   private readonly chatHistory = new ChatHistoryStore();
   private previewIndex = 0;
 
@@ -1128,7 +1104,6 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     this.cleanupFns.forEach(fn => fn());
     if (this.renewTimer) clearTimeout(this.renewTimer);
     if (this.easterEggTimer) clearTimeout(this.easterEggTimer);
-    if (this.rollFxTimer) clearTimeout(this.rollFxTimer);
     this.ws.disconnect();
   }
 
@@ -1197,17 +1172,19 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
     this.cleanupFns.push(this.ws.on('dice_roll', (data: unknown) => {
       const msg = data as DiceRollMessage;
+      const isSelf = msg.nickname === this.myNickname();
       const effects = detectRollEffects(msg.result);
       this.addEntry({
         id: this.nextId(),
         type: 'dice_roll',
         nickname: msg.nickname,
         timestamp: msg.timestamp,
-        isSelf: msg.nickname === this.myNickname(),
+        isSelf,
         result: msg.result,
         effects
       });
-      if (effects.length > 0) this.showRollFx(effects[0]);
+      const visual = rollVisualEffect(effects);
+      if (isSelf && visual) this.showSelfFx(visual);
     }));
 
     this.cleanupFns.push(this.ws.on('card_draw', (data: unknown) => {
@@ -1396,21 +1373,31 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     return entry.effects?.includes(kind) ?? false;
   }
 
+  protected visualFx(entry: ChatDisplayEntry): RollVisualEffect | null {
+    return rollVisualEffect(entry.effects);
+  }
+
   protected reshuffleReasonLabel(reason?: 'joker' | 'empty'): string {
     if (reason === 'joker') return '(comodín)';
     if (reason === 'empty') return '(mazo agotado)';
     return '';
   }
 
-  /** Short ambient flash shown to everyone when a special roll arrives. */
-  private showRollFx(kind: RollEffectKind): void {
-    if (this.rollFxTimer) clearTimeout(this.rollFxTimer);
-    this.rollFx.set({ kind, id: ++this.rollFxId });
-    this.rollFxTimer = setTimeout(() => this.rollFx.set(null), 1600);
+  /** Full-screen celebration shown only to the player who rolled. */
+  private showSelfFx(kind: RollVisualEffect): void {
+    this.selfFx.set({ kind, id: ++this.selfFxId });
+  }
+
+  protected onSelfFxDone(id: number): void {
+    if (this.selfFx()?.id === id) this.selfFx.set(null);
   }
 
   /** Hidden `/fx` command: local preview of a roll effect, never broadcast. */
-  private previewRollEffect(effect: RollEffectKind | null, count: number | null): void {
+  private previewRollEffect(
+    effect: RollEffectKind | null,
+    count: number | null,
+    fullscreen: boolean
+  ): void {
     const kind = effect ?? PREVIEW_ORDER[this.previewIndex++ % PREVIEW_ORDER.length];
     const result = buildPreviewRoll(kind, count ?? this.diceCount());
     const effects = detectRollEffects(result);
@@ -1423,10 +1410,14 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       isSelf: true,
       result,
       effects,
-      preview: true
+      preview: true,
+      previewFullscreen: fullscreen
     });
 
-    this.showRollFx(effects[0] ?? kind);
+    if (fullscreen) {
+      const visual = rollVisualEffect(effects);
+      if (visual) this.showSelfFx(visual);
+    }
   }
 
   protected doRoll(): void {
@@ -1535,7 +1526,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     }
 
     if (command.kind === 'preview_effect') {
-      this.previewRollEffect(command.effect, command.count);
+      this.previewRollEffect(command.effect, command.count, command.fullscreen);
       return 'sent';
     }
 

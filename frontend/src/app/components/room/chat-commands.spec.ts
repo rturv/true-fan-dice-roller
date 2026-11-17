@@ -36,18 +36,22 @@ describe('parseChatCommand', () => {
   });
 
   it('parses the hidden roll effect preview commands', () => {
-    expect(parseChatCommand('/fx')).toEqual({ kind: 'preview_effect', effect: null, count: null });
-    expect(parseChatCommand('/FX')).toEqual({ kind: 'preview_effect', effect: null, count: null });
-    expect(parseChatCommand('/fx alta')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null });
-    expect(parseChatCommand('/fx legendaria')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null });
-    expect(parseChatCommand('/fx 1')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null });
-    expect(parseChatCommand('/fx baja')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null });
-    expect(parseChatCommand('/FX PIFIA')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null });
-    expect(parseChatCommand('/fx 2')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null });
-    expect(parseChatCommand('/fx cadena')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null });
-    expect(parseChatCommand('/fx 3')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null });
-    expect(parseChatCommand('/fx alta 12')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: 12 });
-    expect(parseChatCommand('/fx cadena 3')).toEqual({ kind: 'preview_effect', effect: 'chain', count: 3 });
+    expect(parseChatCommand('/fx')).toEqual({ kind: 'preview_effect', effect: null, count: null, fullscreen: false });
+    expect(parseChatCommand('/FX')).toEqual({ kind: 'preview_effect', effect: null, count: null, fullscreen: false });
+    expect(parseChatCommand('/fx alta')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx legendaria')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx 1')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx baja')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null, fullscreen: false });
+    expect(parseChatCommand('/FX PIFIA')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx 2')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx cadena')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx 3')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null, fullscreen: false });
+    expect(parseChatCommand('/fx alta 12')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: 12, fullscreen: false });
+    expect(parseChatCommand('/fx cadena 3')).toEqual({ kind: 'preview_effect', effect: 'chain', count: 3, fullscreen: false });
+    expect(parseChatCommand('/fx pantalla')).toEqual({ kind: 'preview_effect', effect: null, count: null, fullscreen: true });
+    expect(parseChatCommand('/fx pantalla alta 5')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: 5, fullscreen: true });
+    expect(parseChatCommand('/fx pantalla pifia 3')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: 3, fullscreen: true });
+    expect(parseChatCommand('/fx pantalla cadena')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null, fullscreen: true });
   });
 
   it('rejects anything that is not a command', () => {
@@ -63,6 +67,7 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/ramorco2')).toBeNull();
     expect(parseChatCommand('/fx algo')).toBeNull();
     expect(parseChatCommand('/fx alta 12 3')).toBeNull();
+    expect(parseChatCommand('/fx pantalla algo')).toBeNull();
     expect(parseChatCommand('/fxx')).toBeNull();
   });
 
