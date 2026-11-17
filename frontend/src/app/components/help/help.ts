@@ -14,10 +14,13 @@ import { APP_VERSION } from '../../version';
       </nav>
 
       <header class="hero">
-        <h1>TRUE FAN ROLL DICE: EL MANUAL</h1>
+        <h1>TRUE FAN DICE ROLLER: EL MANUAL</h1>
         <p class="lead">
           Todo lo que necesitas para no hacer el ridículo en tu primera partida. En la segunda
           tampoco prometemos nada.
+        </p>
+        <p>
+          A la medida del nuevo <a href="https://shadowlands.es/tag/fanhunter-srd/" target="_blank" rel="noopener noreferrer">True Fan Hunter SRD</a>.
         </p>
       </header>
 
