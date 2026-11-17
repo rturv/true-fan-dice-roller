@@ -701,18 +701,16 @@ import {
     .dice-counter button {
       width: 44px; height: 44px; border-radius: 10px;
       border: 0;
-      background: var(--accent-on);
+      background: transparent;
       color: var(--accent);
       display: grid; place-items: center; cursor: pointer;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
-      transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast), transform 60ms, box-shadow var(--motion-fast);
+      transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast), transform 60ms;
     }
     .dice-step-icon { display: inline-flex; width: 28px; height: 28px; }
     .dice-step-icon svg { display: block; width: 100%; height: 100%; }
     .dice-counter button:hover {
       background: color-mix(in oklab, var(--accent) 14%, var(--accent-on));
       color: var(--accent);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
     }
     .dice-counter button:active { transform: translateY(1px); }
     .dice-counter button:disabled {
