@@ -19,8 +19,8 @@ import { APP_VERSION } from '../../version';
           Todo lo que necesitas para no hacer el ridículo en tu primera partida. En la segunda
           tampoco prometemos nada.
         </p>
-        <p>
-          A la medida del nuevo <a href="https://shadowlands.es/tag/fanhunter-srd/" target="_blank" rel="noopener noreferrer">True Fan Hunter SRD</a>.
+        <p  class="lead">
+          A la medida del nuevo y estupendoso <i><a href="https://shadowlands.es/tag/fanhunter-srd/" target="_blank" rel="noopener noreferrer">FanHunter SRD</a></i>.
         </p>
       </header>
 
@@ -240,11 +240,15 @@ import { APP_VERSION } from '../../version';
     }
 
     .back-link {
-      color: var(--accent); text-decoration: none; font-weight: 600;
-      font-size: 14px; padding: 6px 10px; border-radius: var(--radius-sm);
-      transition: background var(--motion-fast);
+      font-family: var(--font-body);
+      color: var(--accent); text-decoration: none; font-weight: 700;
+      font-size: 16px; padding: 6px 12px; border-radius: var(--radius-pill);
+      border: 1px solid color-mix(in oklab, var(--accent) 55%, var(--border-soft));
+      transition: border-color var(--motion-fast);
     }
-    .back-link:hover { background: var(--surface); }
+    .back-link:hover {
+      border-color: var(--accent);
+    }
 
     .help-badge {
       font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
@@ -270,6 +274,20 @@ import { APP_VERSION } from '../../version';
     }
     .section p { color: var(--fg-2); font-size: 15px; line-height: 1.6; margin-bottom: 10px; }
     .section p:last-child { margin-bottom: 0; }
+
+    .section p a:not(.back-link),
+    .hero a {
+      font-family: var(--font-body);
+      font-size: 1.05em;
+      color: var(--accent); font-weight: 700; text-decoration: none;
+      padding: 0 2px 1px; border-radius: 3px;
+      border-bottom: 2px solid color-mix(in oklab, var(--accent) 55%, transparent);
+      transition: border-color var(--motion-fast);
+    }
+    .section p a:not(.back-link):hover,
+    .hero a:hover {
+      border-bottom-color: var(--accent);
+    }
 
     .steps { margin: 12px 0 16px; padding-left: 22px; color: var(--fg-2); font-size: 15px; }
     .steps li { margin-bottom: 8px; }
