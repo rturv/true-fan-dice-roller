@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { APP_VERSION } from '../../version';
 
 @Component({
   selector: 'app-help',
@@ -209,6 +210,7 @@ import { RouterLink } from '@angular/router';
       <footer class="help-footer">
         <a class="back-link" routerLink="/">← Volver a la mesa</a>
         <p class="muted">Hecho con dados, cartas y malas decisiones.</p>
+        <p class="version">v{{ version }}</p>
       </footer>
     </div>
   `,
@@ -343,6 +345,10 @@ import { RouterLink } from '@angular/router';
       border-top: 1px solid var(--border-soft);
       display: flex; flex-direction: column; align-items: center; gap: 8px;
     }
+    .version {
+      margin: 0; font-family: var(--font-mono); font-size: 11px;
+      color: var(--meta); letter-spacing: 0.12em;
+    }
 
     @media (max-width: 600px) {
       .help-page { padding: 18px 14px 48px; }
@@ -350,4 +356,6 @@ import { RouterLink } from '@angular/router';
     }
   `,
 })
-export class HelpComponent {}
+export class HelpComponent {
+  protected readonly version = APP_VERSION;
+}

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BackendHealthService } from '../../services/backend-health';
 import { BackendStatusIndicatorComponent } from '../backend-status-indicator/backend-status-indicator';
+import { APP_VERSION } from '../../version';
 
 @Component({
   selector: 'app-lobby',
@@ -76,6 +77,7 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
         </div>
 
         <a class="lobby-help" routerLink="/ayuda">¿Cómo se juega? Entra aquí, fenómeno →</a>
+        <div class="lobby-version">v{{ version }}</div>
       </div>
     </div>
   `,
@@ -106,6 +108,11 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
     .lobby-subtitle {
       text-align: center; color: var(--muted); font-size: 14px;
       margin-bottom: 28px; line-height: 1.4;
+    }
+    .lobby-version {
+      margin-top: 16px; text-align: center;
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--meta); letter-spacing: 0.12em;
     }
     .lobby-form { display: flex; flex-direction: column; gap: 16px; }
     .field-group { display: flex; flex-direction: column; gap: 4px; }
@@ -161,6 +168,7 @@ import { BackendStatusIndicatorComponent } from '../backend-status-indicator/bac
 export class LobbyComponent {
   private readonly health = inject(BackendHealthService);
   protected readonly backendOnline = this.health.online;
+  protected readonly version = APP_VERSION;
 
   nickname = signal('');
   roomCode = signal('');
