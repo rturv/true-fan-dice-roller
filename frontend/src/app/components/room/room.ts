@@ -280,12 +280,24 @@ import {
           </div>
         </div>
         <div class="dice-counter">
-          <button type="button" (click)="decDice()" [disabled]="diceCount() <= 1" aria-label="Menos dados">−</button>
+          <button type="button" (click)="decDice()" [disabled]="diceCount() <= 1" aria-label="Menos dados">
+            <span class="dice-step-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M5 12h14" />
+              </svg>
+            </span>
+          </button>
           <div class="dice-count-display">
             <span class="count-label">{{ diceCount() }}</span>
             <span class="dice-label">d6</span>
           </div>
-          <button type="button" (click)="incDice()" [disabled]="diceCount() >= 20" aria-label="Más dados">+</button>
+          <button type="button" (click)="incDice()" [disabled]="diceCount() >= 20" aria-label="Más dados">
+            <span class="dice-step-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </span>
+          </button>
         </div>
         <div class="modifier-control">
           <span class="mod-label">±</span>
@@ -710,24 +722,27 @@ import {
       padding: 1px; border: 1px solid var(--border);
     }
     .dice-counter button {
-      width: 44px; height: 44px; border-radius: 0;
-      border: 1px solid color-mix(in oklab, var(--accent), black 12%);
-      background: var(--accent); color: var(--accent-on);
-      font-size: 24px; line-height: 1; font-weight: 600;
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 0;
+      background: var(--accent-on);
+      color: var(--accent);
       display: grid; place-items: center; cursor: pointer;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-      transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast), transform 60ms;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+      transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast), transform 60ms, box-shadow var(--motion-fast);
     }
+    .dice-step-icon { display: inline-flex; width: 28px; height: 28px; }
+    .dice-step-icon svg { display: block; width: 100%; height: 100%; }
     .dice-counter button:hover {
-      background: color-mix(in oklab, var(--accent), black 8%);
-      color: var(--accent-on);
+      background: color-mix(in oklab, var(--accent) 14%, var(--accent-on));
+      color: var(--accent);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
     }
     .dice-counter button:active { transform: translateY(1px); }
     .dice-counter button:disabled {
       opacity: 1; cursor: not-allowed; transform: none;
-      background: var(--surface);
+      background: transparent;
       color: var(--meta);
-      border-color: var(--border-soft);
+      border: 0;
       box-shadow: none;
     }
     .dice-counter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -977,7 +992,8 @@ import {
       .pool-value { font-size: 17px; min-width: 18px; }
       .pool-edit-btn { width: 20px; height: 22px; font-size: 12px; }
       .dice-counter { flex: 0 0 auto; gap: 1px; padding: 1px; }
-      .dice-counter button { width: 32px; height: 38px; font-size: 20px; border-radius: 8px; }
+      .dice-counter button { width: 34px; height: 34px; border-radius: 50%; }
+      .dice-step-icon { width: 22px; height: 22px; }
       .dice-counter .count-label { font-size: 18px; min-width: 22px; }
       .dice-counter .dice-label { font-size: 11px; padding-right: 4px; }
       .modifier-control { flex: 0 0 auto; gap: 0; padding: 2px 4px; }
@@ -1003,7 +1019,7 @@ import {
       .room-code { font-size: 12px; letter-spacing: 0.04em; padding: 2px 7px; }
       .status-pill { font-size: 11px; padding: 3px 7px; gap: 4px; }
       .header-menu-btn { width: 34px; height: 34px; font-size: 16px; }
-      .controls-inner { gap: 2px; }
+      .controls-inner { gap: 1px; }
       .pool-btn { width: 20px; }
       .pool-edit-btn { width: 16px; }
       .modifier-control input { width: 36px; }
