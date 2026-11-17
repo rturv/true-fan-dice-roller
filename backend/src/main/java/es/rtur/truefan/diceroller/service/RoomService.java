@@ -52,6 +52,7 @@ public class RoomService {
         room.code = code;
         room.createdAt = Instant.now();
         room.adminNickname = adminNickname;
+        room.cardsEnabled = false;
 
         List<CardInfo> deck = gameService.buildSpanishDeck();
         room.deckState = gameService.deckToJson(deck);
@@ -313,7 +314,8 @@ public class RoomService {
         result.nickname = user.nickname;
         result.card = drawResult.card;
         result.remaining = drawResult.remaining;
-        result.reshuffledNext = drawResult.reshuffledNext;
+        result.autoReshuffled = drawResult.autoReshuffled;
+        result.reshuffleReason = drawResult.reshuffleReason;
         result.timestamp = entry.timestamp.toString();
         return result;
     }
@@ -639,7 +641,8 @@ public class RoomService {
         public String nickname;
         public CardInfo card;
         public int remaining;
-        public boolean reshuffledNext;
+        public boolean autoReshuffled;
+        public String reshuffleReason;
         public String timestamp;
     }
 

@@ -18,10 +18,15 @@ export interface CardInfo {
   shortName: string;
 }
 
+export type RollEffectKind = 'legendary' | 'fumble' | 'chain';
+
 export interface DrawResult {
   card: CardInfo;
   remaining: number;
-  reshuffledNext: boolean;
+  autoReshuffled?: boolean;
+  reshuffleReason?: 'joker' | 'empty';
+  /** Legacy field kept for history entries persisted before auto-reshuffle. */
+  reshuffledNext?: boolean;
 }
 
 export interface HistoryEntry {
@@ -63,7 +68,10 @@ export interface CardDrawMessage extends WsMessage {
   nickname: string;
   card: CardInfo;
   remaining: number;
-  reshuffledNext: boolean;
+  autoReshuffled?: boolean;
+  reshuffleReason?: 'joker' | 'empty';
+  /** Legacy field sent by older backends. */
+  reshuffledNext?: boolean;
   timestamp: string;
 }
 
@@ -121,8 +129,12 @@ export interface ChatDisplayEntry {
   timestamp: string;
   isSelf: boolean;
   result?: DiceResult;
+  effects?: RollEffectKind[];
+  preview?: boolean;
   card?: CardInfo;
   remaining?: number;
+  autoReshuffled?: boolean;
+  reshuffleReason?: 'joker' | 'empty';
   reshuffledNext?: boolean;
   text?: string;
   reason?: string;

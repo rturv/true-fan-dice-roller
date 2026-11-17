@@ -51,7 +51,9 @@ public class GameService {
     public static class DrawResult {
         public CardInfo card;
         public int remaining;
-        public boolean reshuffledNext;
+        public boolean autoReshuffled;
+        /** {@code joker} or {@code empty} when the deck was automatically reshuffled. */
+        public String reshuffleReason;
     }
 
     public DiceResult rollDice(int count, int modifier) {
@@ -138,15 +140,35 @@ public class GameService {
         Collections.shuffle(deck, secureRandom);
     }
 
+    /**
+     * Draws the top card. The deck is automatically rebuilt and shuffled when a
+     * joker shows up or when the last card of the deck is drawn, so the next
+     * draw always starts from a fresh 50-card deck.
+     *
+     * <p>The deck list is mutated in place: callers persist the same list after
+     * the call.</p>
+     */
     public DrawResult drawCard(List<CardInfo> deck) {
         if (deck.isEmpty()) {
-            shuffleDeck(deck);
+            // Safety net for rooms persisted with an already exhausted deck.
+            deck.addAll(buildSpanishDeck());
         }
+
         CardInfo drawn = deck.remove(deck.size() - 1);
+        boolean byJoker = "joker".equals(drawn.kind);
+        boolean deckEmpty = deck.isEmpty();
+        boolean autoReshuffle = byJoker || deckEmpty;
+
+        if (autoReshuffle) {
+            deck.clear();
+            deck.addAll(buildSpanishDeck());
+        }
+
         DrawResult result = new DrawResult();
         result.card = drawn;
         result.remaining = deck.size();
-        result.reshuffledNext = deck.isEmpty();
+        result.autoReshuffled = autoReshuffle;
+        result.reshuffleReason = byJoker ? "joker" : deckEmpty ? "empty" : null;
         return result;
     }
 

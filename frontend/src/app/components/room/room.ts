@@ -5,13 +5,15 @@ import { WebsocketService } from '../../services/websocket';
 import { BackendHealthService } from '../../services/backend-health';
 import { BackendStatusIndicatorComponent } from '../backend-status-indicator/backend-status-indicator';
 import type {
-  ChatDisplayEntry, DiceResult, CardInfo,
+  ChatDisplayEntry, DiceResult, CardInfo, RollEffectKind,
   JoinedMessage, DiceRollMessage, CardDrawMessage,
   TextMessage, UserJoinedMessage, UserLeftMessage,
   UserKickedMessage, AdminChangedMessage, DeckReshuffledMessage,
   UserListMessage, HistoryEntry, DrawResult, PoolUpdatedMessage, CardsToggledMessage
 } from '../../models/game.models';
 import { parseChatCommand } from './chat-commands';
+import { ChatHistoryStore } from './chat-history';
+import { buildPreviewRoll, detectRollEffects, PREVIEW_ORDER } from './roll-effects';
 import { EasterEggComponent } from './easter-egg/easter-egg';
 import {
   nextEasterEgg,
@@ -150,18 +152,27 @@ import {
 
         @for (entry of entries(); track entry.id) {
           @if (entry.type === 'dice_roll') {
-            <div class="roll-entry fade-in" [class.self-roll]="entry.isSelf">
+            <div class="roll-entry fade-in" [class.self-roll]="entry.isSelf"
+                 [class.fx-legendary]="hasFx(entry, 'legendary')"
+                 [class.fx-fumble]="hasFx(entry, 'fumble')"
+                 [class.fx-chain]="hasFx(entry, 'chain')">
               <div class="roll-entry-header">
-                <span class="roll-user">{{ entry.nickname }}@if (entry.isSelf) {<span class="badge-you">you</span>}<span class="roll-formula">{{ rollFormula(entry.result!) }}</span></span>
+                <span class="roll-user">{{ entry.nickname }}@if (entry.isSelf) {<span class="badge-you">you</span>}@if (entry.preview) {<span class="badge-demo">demo</span>}<span class="roll-formula">{{ rollFormula(entry.result!) }}</span></span>
                 <span class="roll-time">{{ entry.timestamp | date:'HH:mm' }}</span>
               </div>
               <div class="dice-row">
                 @for (val of entry.result!.values; track $index) {
                   @if ($index === entry.result!.initialCount) { <span class="roll-detail">+</span> }
-                  <span class="die" [class.pip-6]="val === 6" [class.added]="$index >= entry.result!.initialCount">{{ val }}</span>
+                  <span class="die" [class.pip-6]="val === 6" [class.added]="$index >= entry.result!.initialCount"
+                        [style.animation-delay.ms]="hasFx(entry, 'chain') ? $index * 55 : null">{{ val }}</span>
                 }
                 @if (entry.result!.explosions > 0) {
                   <span class="roll-explosion">EXPLOTAN {{ entry.result!.explosions }}</span>
+                }
+                @if (hasFx(entry, 'chain')) {
+                  @for (spark of sparks; track $index) {
+                    <span class="chain-spark" [style.left.%]="spark.left" [style.animation-delay.ms]="spark.delay"></span>
+                  }
                 }
               </div>
               <div class="roll-summary">
@@ -175,6 +186,15 @@ import {
                   <span class="roll-modifier" [class.positive]="entry.result!.modifier > 0" [class.negative]="entry.result!.modifier < 0">
                     {{ entry.result!.modifier > 0 ? '+' : '' }}{{ entry.result!.modifier }} mod
                   </span>
+                }
+                @if (hasFx(entry, 'legendary')) {
+                  <span class="roll-fx-chip legendary">✦ tirada legendaria</span>
+                }
+                @if (hasFx(entry, 'fumble')) {
+                  <span class="roll-fx-chip fumble">✖ pifia</span>
+                }
+                @if (hasFx(entry, 'chain')) {
+                  <span class="roll-fx-chip chain">⚡ cadena ×{{ entry.result!.explosions }}</span>
                 }
               </div>
             </div>
@@ -215,7 +235,9 @@ import {
                   <div class="card-title">{{ entry.card!.label }}</div>
                   <div class="card-meta">{{ entry.card!.kind === 'joker' ? 'Comodín de la baraja española' : 'Carta sacada de la baraja española' }}</div>
                   <div class="deck-pill">Mazo <strong>{{ entry.remaining }}</strong> restantes</div>
-                  @if (entry.reshuffledNext) {
+                  @if (entry.autoReshuffled) {
+                    <div class="deck-auto">↻ Baraja rebarajada {{ reshuffleReasonLabel(entry.reshuffleReason) }}</div>
+                  } @else if (entry.reshuffledNext) {
                     <div class="card-meta">El siguiente robo volverá a barajar los 50 naipes.</div>
                   }
                 </div>
@@ -237,7 +259,7 @@ import {
     </main>
 
     <div class="chat-input-bar">
-      <input class="chat-input" type="text" [value]="chatText()" (input)="chatText.set($any($event.target).value)" (keydown.enter)="doSendMessage()" placeholder="Escribe un mensaje..." maxlength="500" />
+      <input #chatInput class="chat-input" type="text" [value]="chatText()" (input)="onChatInput($any($event.target).value)" (keydown.enter)="doSendMessage()" (keydown.arrowup)="onHistoryPrevious($event)" (keydown.arrowdown)="onHistoryNext($event)" placeholder="Escribe mensaje o usa / para los comandos" aria-label="Escribir mensaje" maxlength="500" />
       <button class="chat-send-btn" (click)="doSendMessage()" [disabled]="!chatText().trim() || !wsConnected() || !backendOnline()">Enviar</button>
       @if (chatText().trim().startsWith('/')) {
         <div class="cmd-hint">Comandos: <code>/carta</code> · <code>/roll</code> · <code>/3d6+3</code></div>
@@ -258,23 +280,38 @@ import {
           </div>
         </div>
         <div class="dice-counter">
-          <button (click)="decDice()" aria-label="Fewer dice">−</button>
+          <button type="button" (click)="decDice()" [disabled]="diceCount() <= 1" aria-label="Menos dados">−</button>
           <div class="dice-count-display">
             <span class="count-label">{{ diceCount() }}</span>
             <span class="dice-label">d6</span>
           </div>
-          <button (click)="incDice()" aria-label="More dice">+</button>
+          <button type="button" (click)="incDice()" [disabled]="diceCount() >= 20" aria-label="Más dados">+</button>
         </div>
         <div class="modifier-control">
           <span class="mod-label">±</span>
           <input type="number" [value]="modifier()" (input)="setModifier($any($event.target).value)" min="-99" max="99" placeholder="0" aria-label="Roll modifier" />
         </div>
         <button class="roll-btn" [class.rolling]="isRolling()" (click)="doRoll()" [disabled]="isRolling() || !wsConnected() || !backendOnline()" aria-label="Lanzar dados" title="Lanzar dados">
-          <span class="roll-icon" aria-hidden="true"></span>
+          <span class="roll-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+              <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4.4" />
+              <circle cx="8.4" cy="8.4" r="1.6" fill="currentColor" stroke="none" />
+              <circle cx="15.6" cy="8.4" r="1.6" fill="currentColor" stroke="none" />
+              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+              <circle cx="8.4" cy="15.6" r="1.6" fill="currentColor" stroke="none" />
+              <circle cx="15.6" cy="15.6" r="1.6" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
           <span class="btn-label">Lanzar</span>
         </button>
-        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !backendOnline() || !cardsEnabled()" aria-label="Sacar carta" [title]="!cardsEnabled() ? 'Cartas desactivadas por el admin' : 'Sacar carta'">
-          <span class="draw-card-icon" aria-hidden="true"></span>
+        <button class="draw-card-btn" (click)="doDrawCard()" [disabled]="isRolling() || !wsConnected() || !backendOnline() || !cardsEnabled()" aria-label="Sacar carta" [title]="!cardsEnabled() ? 'Cartas desactivadas (el admin puede activarlas)' : 'Sacar carta'">
+          <span class="draw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <rect x="5" y="4.5" width="8.4" height="15" rx="2" transform="rotate(-14 9.2 12)" />
+              <rect x="10.2" y="4.2" width="8.4" height="15.6" rx="2" transform="rotate(10 14.4 12)" fill="var(--surface)" />
+              <path d="M12.6 7.2h4" stroke-linecap="round" />
+            </svg>
+          </span>
           <span class="btn-label">¡Carta!</span>
         </button>
         @if (isAdmin()) {
@@ -297,6 +334,10 @@ import {
           </div>
         </div>
       </div>
+    }
+
+    @for (fx of rollFxList(); track fx.id) {
+      <div class="roll-fx" [attr.data-kind]="fx.kind" aria-hidden="true"></div>
     }
 
     @if (easterEggActive()) {
@@ -491,8 +532,14 @@ import {
       letter-spacing: 0.05em; padding: 1px 8px; border-radius: var(--radius-sm);
       margin-left: 6px; vertical-align: middle;
     }
+    .badge-demo {
+      display: inline-block; border: 1px dashed var(--border); color: var(--meta);
+      font-size: 10px; font-family: var(--font-mono); text-transform: uppercase;
+      letter-spacing: 0.08em; padding: 0 6px; border-radius: var(--radius-sm);
+      margin-left: 6px; vertical-align: middle;
+    }
     .roll-time { font-family: var(--font-mono); font-size: 12px; color: var(--meta); }
-    .dice-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); }
+    .dice-row { position: relative; display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); }
     .die {
       display: flex; align-items: center; justify-content: center;
       width: 42px; height: 42px;
@@ -514,6 +561,96 @@ import {
     .roll-modifier { font-family: var(--font-mono); font-size: 12px; }
     .roll-modifier.positive { color: var(--success); }
     .roll-modifier.negative { color: var(--danger); }
+
+    /* ---------- Roll effects ---------- */
+    .roll-fx-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 2px 8px; border-radius: var(--radius-pill);
+      border: 1px solid var(--border); background: var(--surface); color: var(--fg);
+    }
+    .roll-fx-chip.legendary {
+      color: var(--warn);
+      border-color: color-mix(in oklab, var(--warn) 55%, var(--border));
+      background: color-mix(in oklab, var(--warn) 12%, var(--surface));
+    }
+    .roll-fx-chip.fumble {
+      color: var(--danger);
+      border-color: color-mix(in oklab, var(--danger) 55%, var(--border));
+      background: color-mix(in oklab, var(--danger) 10%, var(--surface));
+    }
+    .roll-fx-chip.chain {
+      color: var(--accent);
+      border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+      background: color-mix(in oklab, var(--accent) 10%, var(--surface));
+    }
+
+    .fx-legendary { border-color: var(--warn); animation: legend-glow 1600ms var(--ease-standard); }
+    .fx-legendary .die { animation: die-legendary 900ms var(--ease-standard); }
+    .fx-fumble { animation: entry-fumble 360ms var(--ease-standard); }
+    .fx-fumble .roll-total { color: var(--danger); }
+    .fx-fumble .die { animation: die-fumble 340ms var(--ease-standard); }
+    .fx-chain .die { animation: die-chain 720ms var(--ease-standard) both; }
+    .chain-spark {
+      position: absolute; bottom: 6px; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent); opacity: 0; pointer-events: none;
+      animation: spark-rise 950ms ease-out forwards;
+      box-shadow: 0 0 6px color-mix(in oklab, var(--accent) 60%, transparent);
+    }
+
+    .roll-fx {
+      position: fixed; inset: 0; z-index: 800; pointer-events: none;
+      opacity: 0; animation: roll-fx-ambient 1600ms ease-out forwards;
+    }
+    .roll-fx[data-kind='legendary'] {
+      box-shadow: inset 0 0 110px color-mix(in oklab, var(--warn) 60%, transparent);
+    }
+    .roll-fx[data-kind='fumble'] {
+      box-shadow: inset 0 0 110px color-mix(in oklab, var(--danger) 55%, transparent);
+    }
+    .roll-fx[data-kind='chain'] {
+      box-shadow: inset 0 0 110px color-mix(in oklab, var(--accent) 55%, transparent);
+    }
+
+    @keyframes legend-glow {
+      0% { box-shadow: 0 0 0 0 transparent; }
+      30% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--warn) 55%, transparent), 0 0 30px color-mix(in oklab, var(--warn) 24%, transparent); }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes die-legendary {
+      0%, 100% { transform: rotate(-1deg) scale(1); }
+      35% { transform: rotate(2deg) scale(1.12); }
+    }
+    @keyframes die-fumble {
+      0%, 100% { transform: translateX(0) rotate(0); }
+      25% { transform: translateX(-3px) rotate(-3deg); }
+      50% { transform: translateX(3px) rotate(3deg); }
+      75% { transform: translateX(-2px) rotate(-1deg); }
+    }
+    @keyframes die-chain {
+      0%, 100% { transform: scale(1); }
+      45% { transform: scale(1.14); }
+    }
+    @keyframes entry-fumble {
+      0%, 100% { filter: saturate(1); }
+      30% { filter: saturate(0.35); }
+    }
+    @keyframes spark-rise {
+      0% { opacity: 0; transform: translateY(0) scale(0.7); }
+      20% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-44px) scale(0.3); }
+    }
+    @keyframes roll-fx-ambient {
+      0% { opacity: 0; }
+      18% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fx-legendary, .fx-legendary .die, .fx-fumble, .fx-fumble .die,
+      .fx-chain .die, .chain-spark { animation: none !important; }
+      .roll-fx { animation-duration: 900ms; }
+    }
 
     .entry-connector {
       text-align: center; padding: var(--space-2) 0;
@@ -548,6 +685,7 @@ import {
       border: 1px solid var(--border); background: var(--surface);
       color: var(--fg); font-size: 14px; padding: 0 12px; outline: none;
     }
+    .chat-input::placeholder { color: var(--meta); opacity: 1; text-overflow: ellipsis; }
     .chat-input:focus { border-color: var(--accent); }
     .chat-send-btn {
       height: 38px; border-radius: var(--radius-sm); border: none;
@@ -563,22 +701,37 @@ import {
       background: var(--bg); padding: var(--space-4) var(--space-6);
     }
     .controls-inner {
-      max-width: 680px; margin: 0 auto;
+      max-width: 820px; margin: 0 auto;
       display: flex; align-items: center; gap: var(--space-4);
     }
     .dice-counter {
-      display: flex; align-items: center; gap: var(--space-2);
+      display: flex; align-items: center; gap: 4px;
       background: var(--surface); border-radius: var(--radius-md);
-      padding: var(--space-1); border: 1px solid var(--border);
+      padding: 1px; border: 1px solid var(--border);
     }
     .dice-counter button {
-      width: 36px; height: 36px; border-radius: var(--radius-sm);
-      border: none; background: transparent; font-size: 18px; font-weight: 600;
-      color: var(--fg); display: grid; place-items: center; cursor: pointer;
-      transition: background var(--motion-fast) var(--ease-standard);
+      width: 44px; height: 44px; border-radius: 0;
+      border: 1px solid color-mix(in oklab, var(--accent), black 12%);
+      background: var(--accent); color: var(--accent-on);
+      font-size: 24px; line-height: 1; font-weight: 600;
+      display: grid; place-items: center; cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast), transform 60ms;
     }
-    .dice-counter button:hover { background: var(--surface); }
-    .dice-counter .count-label { font-family: var(--font-display); font-size: 20px; font-weight: 700; min-width: 36px; text-align: center; color: var(--fg); }
+    .dice-counter button:hover {
+      background: color-mix(in oklab, var(--accent), black 8%);
+      color: var(--accent-on);
+    }
+    .dice-counter button:active { transform: translateY(1px); }
+    .dice-counter button:disabled {
+      opacity: 1; cursor: not-allowed; transform: none;
+      background: var(--surface);
+      color: var(--meta);
+      border-color: var(--border-soft);
+      box-shadow: none;
+    }
+    .dice-counter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .dice-counter .count-label { font-family: var(--font-display); font-size: 22px; font-weight: 700; min-width: 38px; text-align: center; color: var(--fg); }
     .dice-counter .dice-label { font-size: 13px; color: var(--muted); font-weight: 500; padding-right: var(--space-2); }
     .modifier-control {
       display: flex; align-items: center; gap: var(--space-2);
@@ -608,9 +761,10 @@ import {
     .roll-btn:active { transform: translateY(1px); }
     .roll-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     .roll-btn .roll-icon {
-      display: inline-block; width: 20px; height: 20px;
-      border: 2px solid var(--accent-on); border-radius: var(--radius-sm);
+      display: inline-flex; width: 22px; height: 22px; flex: 0 0 auto;
     }
+    .roll-btn .roll-icon svg,
+    .draw-card-btn .draw-card-icon svg { display: block; width: 100%; height: 100%; }
     .roll-btn.rolling .roll-icon { animation: spin 400ms linear infinite; }
     .draw-card-btn {
       background: var(--surface); border: 1px solid var(--border); color: var(--fg);
@@ -619,8 +773,7 @@ import {
     .draw-card-btn:hover { background: color-mix(in oklab, var(--surface), var(--accent) 8%); border-color: var(--accent); }
     .draw-card-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .draw-card-btn .draw-card-icon {
-      width: 16px; height: 22px; border: 2px solid currentColor;
-      border-radius: 4px; flex: 0 0 auto;
+      width: 22px; height: 22px; flex: 0 0 auto; display: inline-flex;
     }
     .admin-btn {
       width: 48px; height: 48px; border-radius: var(--radius-md);
@@ -729,6 +882,14 @@ import {
     .card-meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
     .deck-pill { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 5px 10px; border-radius: var(--radius-sm); background: color-mix(in oklab, var(--surface), var(--bg) 40%); border: 1px solid var(--border-soft); font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--muted); }
     .deck-pill strong { color: var(--fg); font-weight: 700; }
+    .deck-auto {
+      display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+      padding: 4px 10px; border-radius: var(--radius-sm);
+      background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+      border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--border));
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+      color: var(--accent); letter-spacing: 0.04em;
+    }
     .suit-oros .card-corner, .suit-oros .card-suit-label { color: #d4a017; }
     .suit-copas .card-corner, .suit-copas .card-suit-label { color: #b93118; }
     .suit-espadas .card-corner, .suit-espadas .card-suit-label { color: #405c78; }
@@ -755,6 +916,11 @@ import {
       .controls-inner { gap: var(--space-3); flex-wrap: wrap; }
       .spanish-card { width: 88px; min-height: 128px; }
       .card-copy { min-width: 0; flex: 1; }
+    }
+
+    /* Narrow desktop/tablet: let the control bar breathe instead of overflowing. */
+    @media (max-width: 860px) {
+      .controls-inner { flex-wrap: wrap; justify-content: center; row-gap: var(--space-2); }
     }
 
     /* Modo compacto para moviles, incluido el movil en horizontal (pantallas
@@ -810,14 +976,14 @@ import {
       .pool-btn { width: 22px; height: 26px; font-size: 13px; }
       .pool-value { font-size: 17px; min-width: 18px; }
       .pool-edit-btn { width: 20px; height: 22px; font-size: 12px; }
-      .dice-counter { flex: 0 0 auto; gap: 0; padding: 2px; }
-      .dice-counter button { width: 26px; height: 32px; font-size: 16px; }
-      .dice-counter .count-label { font-size: 17px; min-width: 22px; }
+      .dice-counter { flex: 0 0 auto; gap: 1px; padding: 1px; }
+      .dice-counter button { width: 32px; height: 38px; font-size: 20px; border-radius: 8px; }
+      .dice-counter .count-label { font-size: 18px; min-width: 22px; }
       .dice-counter .dice-label { font-size: 11px; padding-right: 4px; }
       .modifier-control { flex: 0 0 auto; gap: 0; padding: 2px 4px; }
       .modifier-control .mod-label { display: none; }
       .modifier-control input { width: 42px; height: 32px; font-size: 14px; padding: 0 2px; }
-      .roll-btn, .draw-card-btn { height: 40px; }
+      .roll-btn, .draw-card-btn { height: 42px; }
       .btn-label { display: none; }
       .roll-btn { flex: 1 1 40px; min-width: 40px; padding: 0; }
       .draw-card-btn { flex: 0 0 44px; width: 44px; padding: 0; }
@@ -825,6 +991,11 @@ import {
     }
 
     /* Moviles estrechos: mantiene cabecera y pie en una sola fila. */
+    @media (max-width: 420px) {
+      /* All dice are d6; dropping the label frees room for bigger +/- buttons. */
+      .dice-counter .dice-label { display: none; }
+    }
+
     @media (max-width: 380px) {
       .app-header { padding: var(--space-2); }
       .app-header-inner { gap: 4px; }
@@ -835,7 +1006,6 @@ import {
       .controls-inner { gap: 2px; }
       .pool-btn { width: 20px; }
       .pool-edit-btn { width: 16px; }
-      .dice-counter button { width: 22px; }
       .modifier-control input { width: 36px; }
     }
     .fade-in { animation: fadeIn 300ms var(--ease-standard); }
@@ -869,11 +1039,26 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected modifier = signal(0);
   protected wsConnected = signal(false);
   protected poolValue = signal(0);
-  protected cardsEnabled = signal(true);
+  protected cardsEnabled = signal(false);
   protected poolModalOpen = signal(false);
   protected poolModalInput = signal('');
   protected copied = signal(false);
   protected chatText = signal('');
+
+  protected readonly rollFx = signal<{ kind: RollEffectKind; id: number } | null>(null);
+  protected readonly rollFxList = computed(() => {
+    const fx = this.rollFx();
+    return fx ? [fx] : [];
+  });
+  protected readonly sparks = Array.from({ length: 10 }, (_, index) => ({
+    left: 8 + index * 8,
+    delay: index * 55,
+  }));
+
+  private rollFxId = 0;
+  private rollFxTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly chatHistory = new ChatHistoryStore();
+  private previewIndex = 0;
 
   protected entries = signal<ChatDisplayEntry[]>([]);
   protected connectedUsers = signal<string[]>([]);
@@ -883,6 +1068,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected playersPopoverStyle = signal<Record<string, string>>({});
 
   private chatLogEl = viewChild<ElementRef<HTMLElement>>('chatLog');
+  private chatInputEl = viewChild<ElementRef<HTMLInputElement>>('chatInput');
   private playersButton = viewChild<ElementRef<HTMLButtonElement>>('playersButton');
   private playersWrap = viewChild<ElementRef<HTMLElement>>('playersWrap');
   private headerRight = viewChild<ElementRef<HTMLElement>>('headerRight');
@@ -926,6 +1112,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     this.cleanupFns.forEach(fn => fn());
     if (this.renewTimer) clearTimeout(this.renewTimer);
     if (this.easterEggTimer) clearTimeout(this.easterEggTimer);
+    if (this.rollFxTimer) clearTimeout(this.rollFxTimer);
     this.ws.disconnect();
   }
 
@@ -994,6 +1181,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
     this.cleanupFns.push(this.ws.on('dice_roll', (data: unknown) => {
       const msg = data as DiceRollMessage;
+      const effects = detectRollEffects(msg.result);
       this.addEntry({
         id: this.nextId(),
         type: 'dice_roll',
@@ -1001,8 +1189,9 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
         timestamp: msg.timestamp,
         isSelf: msg.nickname === this.myNickname(),
         result: msg.result,
-        remaining: undefined
+        effects
       });
+      if (effects.length > 0) this.showRollFx(effects[0]);
     }));
 
     this.cleanupFns.push(this.ws.on('card_draw', (data: unknown) => {
@@ -1015,7 +1204,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
         isSelf: msg.nickname === this.myNickname(),
         card: msg.card,
         remaining: msg.remaining,
-        reshuffledNext: msg.reshuffledNext
+        autoReshuffled: msg.autoReshuffled ?? msg.reshuffledNext,
+        reshuffleReason: msg.reshuffleReason
       });
     }));
 
@@ -1186,6 +1376,43 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     return `${count}d6${modifier}`;
   }
 
+  protected hasFx(entry: ChatDisplayEntry, kind: RollEffectKind): boolean {
+    return entry.effects?.includes(kind) ?? false;
+  }
+
+  protected reshuffleReasonLabel(reason?: 'joker' | 'empty'): string {
+    if (reason === 'joker') return '(comodín)';
+    if (reason === 'empty') return '(mazo agotado)';
+    return '';
+  }
+
+  /** Short ambient flash shown to everyone when a special roll arrives. */
+  private showRollFx(kind: RollEffectKind): void {
+    if (this.rollFxTimer) clearTimeout(this.rollFxTimer);
+    this.rollFx.set({ kind, id: ++this.rollFxId });
+    this.rollFxTimer = setTimeout(() => this.rollFx.set(null), 1600);
+  }
+
+  /** Hidden `/fx` command: local preview of a roll effect, never broadcast. */
+  private previewRollEffect(effect: RollEffectKind | null, count: number | null): void {
+    const kind = effect ?? PREVIEW_ORDER[this.previewIndex++ % PREVIEW_ORDER.length];
+    const result = buildPreviewRoll(kind, count ?? this.diceCount());
+    const effects = detectRollEffects(result);
+
+    this.addEntry({
+      id: this.nextId(),
+      type: 'dice_roll',
+      nickname: this.myNickname() || 'Tú',
+      timestamp: new Date().toISOString(),
+      isSelf: true,
+      result,
+      effects,
+      preview: true
+    });
+
+    this.showRollFx(effects[0] ?? kind);
+  }
+
   protected doRoll(): void {
     if (this.isRolling() || !this.backendOnline()) return;
     this.isRolling.set(true);
@@ -1222,12 +1449,12 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     const text = this.chatText().trim();
     if (!text) return;
 
-    // Commands are evaluated first so purely local ones (the easter egg) work
-    // even when the backend is not reachable.
+    // Commands are evaluated first so purely local ones (the easter egg and
+    // the roll effect previews) work even when the backend is not reachable.
     if (text.startsWith('/')) {
       const outcome = this.runCommand(text);
       if (outcome === 'sent') {
-        this.chatText.set('');
+        this.finishChatInput(text);
         return;
       }
       if (outcome === 'blocked') return;
@@ -1236,7 +1463,42 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     if (!this.backendOnline()) return;
 
     this.ws.send({ type: 'send_message', text });
+    this.finishChatInput(text);
+  }
+
+  private finishChatInput(text: string): void {
+    this.chatHistory.record(text);
     this.chatText.set('');
+  }
+
+  protected onChatInput(value: string): void {
+    this.chatText.set(value);
+  }
+
+  protected onHistoryPrevious(event: Event): void {
+    const value = this.chatHistory.previous(this.chatText());
+    if (value === null) return;
+    event.preventDefault();
+    this.setChatText(value);
+  }
+
+  protected onHistoryNext(event: Event): void {
+    if (!this.chatHistory.isBrowsing) return;
+    const value = this.chatHistory.next();
+    if (value === null) return;
+    event.preventDefault();
+    this.setChatText(value);
+  }
+
+  private setChatText(value: string): void {
+    this.chatText.set(value);
+    setTimeout(() => {
+      const input = this.chatInputEl()?.nativeElement;
+      if (!input) return;
+      input.focus();
+      const end = input.value.length;
+      input.setSelectionRange(end, end);
+    });
   }
 
   /**
@@ -1253,6 +1515,11 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
 
     if (command.kind === 'easter_egg') {
       this.triggerEasterEgg();
+      return 'sent';
+    }
+
+    if (command.kind === 'preview_effect') {
+      this.previewRollEffect(command.effect, command.count);
       return 'sent';
     }
 
@@ -1480,6 +1747,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   private historyToEntry(h: HistoryEntry): ChatDisplayEntry {
+    const data = h.data as DrawResult | undefined;
     return {
       id: 'h' + (++this.entryCounter),
       type: h.type as ChatDisplayEntry['type'],
@@ -1488,9 +1756,11 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
       isSelf: h.nickname === this.myNickname(),
       text: h.text,
       result: (h.data as DiceResult) || undefined,
-      card: (h.data as DrawResult)?.card || undefined,
-      remaining: (h.data as DrawResult)?.remaining || undefined,
-      reshuffledNext: (h.data as DrawResult)?.reshuffledNext || undefined
+      card: data?.card || undefined,
+      remaining: data?.remaining ?? undefined,
+      autoReshuffled: data?.autoReshuffled ?? data?.reshuffledNext ?? undefined,
+      reshuffleReason: data?.reshuffleReason,
+      reshuffledNext: data?.reshuffledNext
     };
   }
 

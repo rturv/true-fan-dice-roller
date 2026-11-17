@@ -6,14 +6,23 @@
  * for executing the returned command.
  */
 
+import type { RollEffectKind } from '../../models/game.models';
+
 export type ChatCommand =
   | { kind: 'draw_card' }
   | { kind: 'roll_current' }
   | { kind: 'roll'; count: number; modifier: number }
+  | { kind: 'preview_effect'; effect: RollEffectKind | null; count: number | null }
   | { kind: 'easter_egg' };
 
 /** Matches `Nd6`, `Nd6+M` and `Nd6-M` (N is optional, so `d6` means one die). */
 const DICE_PATTERN = /^(\d{0,2})d6(?:\s*([+-])\s*(\d{1,2}))?$/i;
+
+/**
+ * Hidden preview command: `/fx`, `/fx alta 5`, `/fx pifia`, `/fx cadena 10`.
+ * The optional trailing number sets the dice count for the preview.
+ */
+const FX_PATTERN = /^fx(?:\s+(alta|legendaria|baja|pifia|cadena|[123]))?(?:\s+(\d{1,2}))?$/i;
 
 // Same limits enforced by the backend (GameService).
 const DICE_MIN = 1;
@@ -37,6 +46,28 @@ export function parseChatCommand(raw: string): ChatCommand | null {
   if (lower === 'roll') return { kind: 'roll_current' };
   // Hidden easter egg, deliberately left out of the command hint.
   if (lower === 'rtur' || lower === 'ramorco') return { kind: 'easter_egg' };
+
+  // Hidden preview commands used to test the roll effects.
+  if (lower === 'fx' || lower.startsWith('fx ')) {
+    const fx = FX_PATTERN.exec(lower);
+    if (!fx) return null;
+
+    const alias = fx[1];
+    const effect: RollEffectKind | null =
+      alias === 'alta' || alias === 'legendaria' || alias === '1'
+        ? 'legendary'
+        : alias === 'baja' || alias === 'pifia' || alias === '2'
+          ? 'fumble'
+          : alias === 'cadena' || alias === '3'
+            ? 'chain'
+            : null;
+
+    return {
+      kind: 'preview_effect',
+      effect,
+      count: fx[2] ? Number(fx[2]) : null,
+    };
+  }
 
   const match = DICE_PATTERN.exec(lower);
   if (!match) return null;

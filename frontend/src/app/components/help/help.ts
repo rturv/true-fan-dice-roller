@@ -102,11 +102,13 @@ import { RouterLink } from '@angular/router';
         </p>
         <p>
           50 naipes, incluidos los dos comodines. Cada robo descuenta del mazo y el chat te dice
-          cuántos quedan. Cuando se acaba, se baraja y a seguir.
+          cuántos quedan. Si sale un comodín o se agota la baraja, se rebaraja sola y vuelve a
+          haber 50 naipes para el siguiente robo.
         </p>
         <ul class="bullets">
-          <li>El admin puede <strong>desactivar las cartas</strong> si la partida va de solo dados.</li>
-          <li>También puede <strong>barajar</strong> el mazo cuando toque.</li>
+          <li>Las cartas vienen <strong>desactivadas por defecto</strong> en cada sala nueva. El admin las activa cuando toque.</li>
+          <li>El admin puede <strong>activarlas o desactivarlas</strong> si la partida va de solo dados.</li>
+          <li>También puede <strong>barajar</strong> el mazo a mano cuando le apetezca.</li>
         </ul>
       </section>
 
@@ -129,6 +131,11 @@ import { RouterLink } from '@angular/router';
           </tbody>
         </table>
         <p class="muted">Mayúsculas y espacios dan igual: <code>/CARTA</code> y <code>/ 3d6 + 3</code> también valen.</p>
+        <p class="tip">
+          El campo de mensaje guarda lo último que enviaste. Usa <kbd>↑</kbd> y <kbd>↓</kbd> para
+          recuperar mensajes o comandos anteriores, como en una terminal. Es historial local del
+          navegador: no se guarda en la sala.
+        </p>
         <figure class="shot">
           <img src="/help/comandos.png" alt="Barra de chat mostrando la ayuda de comandos al escribir una barra" loading="lazy" width="1100" height="800" />
           <figcaption>Escribe "/" y la app te chiva los comandos.</figcaption>

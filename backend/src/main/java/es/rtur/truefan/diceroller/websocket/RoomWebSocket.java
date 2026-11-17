@@ -248,13 +248,21 @@ public class RoomWebSocket {
         RoomUser user = validateSession(session);
         if (user == null) return;
 
+        if (!user.room.cardsEnabled) {
+            sendError(session, "Cards are disabled");
+            return;
+        }
+
         CardDrawResult result = roomService.performCardDraw(user);
 
         ObjectNode response = objectMapper.createObjectNode();
         response.put("type", "card_draw");
         response.put("nickname", result.nickname);
         response.put("remaining", result.remaining);
-        response.put("reshuffledNext", result.reshuffledNext);
+        response.put("autoReshuffled", result.autoReshuffled);
+        if (result.reshuffleReason != null) {
+            response.put("reshuffleReason", result.reshuffleReason);
+        }
         response.put("timestamp", result.timestamp);
         response.set("card", objectMapper.valueToTree(result.card));
 

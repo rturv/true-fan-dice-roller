@@ -63,6 +63,9 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 | FR3.4 | Resultado final = suma de todos los dados (originales + explosiones) + modificador. |
 | FR3.5 | En el chat log se muestra: usuario, timestamp, iconos de dados individuales (marcando visualmente los de explosión y los que sacaron 6), puntuación total, desglose detallado, y el modificador aplicado si no es 0. |
 | FR3.6 | El mensaje de tirada se etiqueta como "you" para el propio usuario. |
+| FR3.7 | Efectos discretos de tirada, visibles para todos los jugadores y atribuidos al autor: **legendaria** (tirada muy alta), **pifia** (tirada muy baja) y **cadena** (muchas explosiones). |
+| FR3.8 | Los efectos se calculan en el cliente a partir del payload `dice_roll` (mismo resultado para todos) y no se persisten ni se reproducen al recuperar el historial. |
+| FR3.9 | El cálculo usa `diceTotal` (sin modificador) y `explosions` con umbrales derivados de la distribución del d6 explosivo. Una tirada puede mostrar legendaria y cadena a la vez. |
 
 ### FR4 — Sacar Carta de Baraja Española
 
@@ -70,10 +73,12 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 |----|----------|
 | FR4.1 | Baraja española completa: **48 naipes** (1-12 de Oros, Copas, Espadas, Bastos) + **2 comodines** (Rojo y Negro) = **50 cartas totales**. |
 | FR4.2 | La baraja es **compartida por sala**: todos los jugadores sacan del mismo mazo. |
-| FR4.3 | Al pulsar "Sacar Carta" (o tecla 'C'), se saca la carta superior del mazo. |
-| FR4.4 | Cuando el mazo se agota (50 cartas sacadas), se **rebaraja automáticamente** al siguiente robo. |
-| FR4.5 | El admin puede **rebarajar manualmente** en cualquier momento mediante el botón "Reiniciar Baraja". |
-| FR4.6 | En el chat log se muestra: usuario, timestamp, carta visual renderizada con el diseño español (palo, número, glifo SVG), texto descriptivo, y contador de cartas restantes en el mazo. |
+| FR4.3 | Al pulsar "Sacar Carta" (o tecla 'C'), se saca la carta superior del mazo. Solo es posible si el admin ha activado las cartas. |
+| FR4.4 | Las cartas están **desactivadas por defecto** en las salas nuevas. El admin puede activarlas o desactivarlas cuando quiera. |
+| FR4.5 | La baraja se **rebaraja automáticamente** después de sacar un comodín o la última carta, dejando de nuevo 50 naipes para el siguiente robo. |
+| FR4.6 | El admin puede **rebarajar manualmente** en cualquier momento mediante el botón "Reiniciar Baraja". |
+| FR4.7 | En el chat log se muestra: usuario, timestamp, carta visual renderizada con el diseño español (palo, número, glifo SVG), texto descriptivo, y contador de cartas restantes en el mazo. |
+| FR4.8 | Cuando el rebarajado es automático, el mensaje `card_draw` incluye `autoReshuffled` y el motivo (`joker` o `empty`), y el chat lo indica. |
 
 ### FR5 — Chat de Texto
 
@@ -128,8 +133,10 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 | FR10.2 | `C`: sacar carta. |
 | FR10.3 | Teclas `1-9`, `0` (=10): fijar cantidad de dados directamente. |
 | FR10.4 | `Shift + 1-9` (=11-19): fijar cantidad de dados. |
-| FR10.5 | `Flecha arriba/abajo`: ajustar modificador +/- 1. |
+| FR10.5 | `Flecha arriba/abajo` (sin el foco en el campo de chat): ajustar modificador +/- 1. |
 | FR10.6 | `+` / `-`: ajustar cantidad de dados +/- 1. |
+| FR10.7 | En el campo de chat, `Flecha arriba/abajo` recorre el historial local de mensajes y comandos enviados (máx. 50, solo en localStorage, nunca en la base de datos). |
+| FR10.8 | Comando oculto `/fx` para previsualizar localmente los efectos de tirada (`/fx`, `/fx alta`, `/fx pifia`, `/fx cadena`, con número de dados opcional). No se transmite a la sala. |
 
 ### FR11 — Pool de Reserva
 
@@ -218,7 +225,7 @@ Formato de mensajes: **JSON**.
 | `joined` | `{ "type": "joined", "roomCode": "...", "users": [...], "history": [...], "deckRemaining": 50, "poolValue": 0, "isAdmin": true/false, "sessionToken": "..." }` |
 | `error` | `{ "type": "error", "message": "Nickname already taken" }` |
 | `dice_roll` | `{ "type": "dice_roll", "nickname": "Mago", "result": { "values": [6,3,5,2], "initialCount": 3, "diceTotal": 16, "modifier": 2, "total": 18, "explosions": 1 }, "timestamp": "..." }` |
-| `card_draw` | `{ "type": "card_draw", "nickname": "Mago", "card": { "kind": "card", "suit": "oros", "suitName": "Oros", "rank": 7, "label": "7 de Oros" }, "remaining": 42, "reshuffledNext": false, "timestamp": "..." }` |
+| `card_draw` | `{ "type": "card_draw", "nickname": "Mago", "card": { "kind": "card", "suit": "oros", "suitName": "Oros", "rank": 7, "label": "7 de Oros" }, "remaining": 49, "autoReshuffled": false, "timestamp": "..." }` |
 | `text_message` | `{ "type": "text_message", "nickname": "Mago", "text": "¡Hola!", "timestamp": "..." }` |
 | `user_joined` | `{ "type": "user_joined", "nickname": "Mago" }` |
 | `user_left` | `{ "type": "user_left", "nickname": "Mago", "reason": "disconnect" }` |
@@ -294,10 +301,10 @@ El servidor envía un `ping` cada 30 segundos. El cliente debe responder con `po
 2. Backend asigna admin al usuario conectado más antiguo.
 3. Se transmite `admin_changed` a todos.
 
-### FA8 — Baraja agotada
-1. Se saca la última carta (la nº 50).
-2. Backend marca `reshuffledNext: true` en el mensaje `card_draw`.
-3. En el siguiente `draw_card`, el backend rebaraja automáticamente las 50 cartas y saca la primera del nuevo mazo.
+### FA8 — Baraja agotada o comodín
+1. Se saca la última carta (la nº 50) o un comodín.
+2. El backend rebaraja inmediatamente una baraja completa de 50 naipes y devuelve la carta robada con `autoReshuffled: true` y `reshuffleReason` (`empty` o `joker`).
+3. El chat informa de que la baraja se ha rebarajado y muestra el contador en 50. No hace falta esperar al siguiente robo.
 
 ### FA9 — Baraja reiniciada manualmente
 1. Admin pulsa "Reiniciar Baraja".
@@ -326,12 +333,18 @@ El servidor envía un `ping` cada 30 segundos. El cliente debe responder con `po
 - [ ] AC11: Al tirar, veo los dados individuales, explosiones, total y desglose.
 - [ ] AC12: Los demás usuarios ven mi tirada en tiempo real (<500ms).
 - [ ] AC13: Las tiradas se persisten y aparecen al entrar en la sala.
+- [ ] AC13b: Una tirada muy alta muestra el efecto de legendaria con el nick del autor y lo ven todos los jugadores.
+- [ ] AC13c: Una tirada muy baja (2+ dados) muestra el efecto de pifia con el nick del autor.
+- [ ] AC13d: Una tirada con muchas explosiones muestra el efecto de cadena con el nick del autor.
+- [ ] AC13e: Los efectos no se reproducen al entrar en la sala ni al recargar el historial.
+- [ ] AC13f: El comando oculto `/fx` permite previsualizar los tres efectos en local.
 
 ### Sacar Carta
 - [ ] AC14: Al sacar carta, veo la carta renderizada con el diseño español.
 - [ ] AC15: La baraja se comparte entre todos los usuarios de la sala.
-- [ ] AC16: Al agotarse, se rebaraja automáticamente.
+- [ ] AC16: Tras sacar un comodín o la última carta, la baraja vuelve a tener 50 naipes y el chat lo indica.
 - [ ] AC17: El admin puede rebarajar manualmente.
+- [ ] AC17b: Las salas nuevas nacen con las cartas desactivadas; solo el admin puede activarlas.
 
 ### Chat de Texto
 - [ ] AC18: Puedo enviar mensajes de texto y los demás los ven.
@@ -351,6 +364,8 @@ El servidor envía un `ping` cada 30 segundos. El cliente debe responder con `po
 - [ ] AC26: Tecla C saca carta.
 - [ ] AC27: Teclas numéricas fijan cantidad de dados.
 - [ ] AC28: Flechas y +/- ajustan modificador y cantidad.
+- [ ] AC28b: En el input del chat, ↑/↓ recuperan el historial local de mensajes y comandos.
+- [ ] AC28c: El input vacío muestra el placeholder "Escribe mensaje o usa / para los comandos".
 
 ### Pool de Reserva
 - [ ] AC29: El pool se ve en la barra de controles con etiqueta "Pool" y valor 0 al crear sala.

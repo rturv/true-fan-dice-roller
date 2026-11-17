@@ -35,6 +35,21 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('/ rtur')).toEqual({ kind: 'easter_egg' });
   });
 
+  it('parses the hidden roll effect preview commands', () => {
+    expect(parseChatCommand('/fx')).toEqual({ kind: 'preview_effect', effect: null, count: null });
+    expect(parseChatCommand('/FX')).toEqual({ kind: 'preview_effect', effect: null, count: null });
+    expect(parseChatCommand('/fx alta')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null });
+    expect(parseChatCommand('/fx legendaria')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null });
+    expect(parseChatCommand('/fx 1')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: null });
+    expect(parseChatCommand('/fx baja')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null });
+    expect(parseChatCommand('/FX PIFIA')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null });
+    expect(parseChatCommand('/fx 2')).toEqual({ kind: 'preview_effect', effect: 'fumble', count: null });
+    expect(parseChatCommand('/fx cadena')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null });
+    expect(parseChatCommand('/fx 3')).toEqual({ kind: 'preview_effect', effect: 'chain', count: null });
+    expect(parseChatCommand('/fx alta 12')).toEqual({ kind: 'preview_effect', effect: 'legendary', count: 12 });
+    expect(parseChatCommand('/fx cadena 3')).toEqual({ kind: 'preview_effect', effect: 'chain', count: 3 });
+  });
+
   it('rejects anything that is not a command', () => {
     expect(parseChatCommand('')).toBeNull();
     expect(parseChatCommand('/')).toBeNull();
@@ -46,6 +61,9 @@ describe('parseChatCommand', () => {
     expect(parseChatCommand('hola /carta')).toBeNull();
     expect(parseChatCommand('/rturx')).toBeNull();
     expect(parseChatCommand('/ramorco2')).toBeNull();
+    expect(parseChatCommand('/fx algo')).toBeNull();
+    expect(parseChatCommand('/fx alta 12 3')).toBeNull();
+    expect(parseChatCommand('/fxx')).toBeNull();
   });
 
   it('rejects dice expressions outside the allowed ranges', () => {

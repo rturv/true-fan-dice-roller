@@ -32,5 +32,5 @@ public class Room {
     public int poolValue;
 
     @Column(nullable = false)
-    public boolean cardsEnabled = true;
+    public boolean cardsEnabled = false;
 }
