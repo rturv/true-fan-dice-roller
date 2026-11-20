@@ -187,7 +187,7 @@ import { APP_VERSION } from '../../version';
           <strong>Comprobando…</strong>, <strong>Backend en línea</strong> o <strong>Sin conexión</strong>.
           Con el punto verde, adelante. Si pone "Sin conexión", no entres en pánico: en los hostings
           gratuitos el backend se echa la siesta y tarda en arrancar. Espera tranquilamente
-          <strong>30-60 segundos</strong>; la app vuelve a comprobar sola cada 15 segundos.
+          <strong>30-60 segundos</strong>; la app vuelve a comprobar sola cada 10 segundos.
         </p>
         <ul class="bullets">
           <li><strong>Sigue sin conexión después de un par de minutos:</strong> entonces sí, algo se ha roto. Avisa a quien haya montado el tinglado.</li>

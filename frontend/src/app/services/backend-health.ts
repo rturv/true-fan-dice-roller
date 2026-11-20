@@ -15,7 +15,7 @@ export class BackendHealthService {
   readonly lastChecked = signal<number | null>(null);
   readonly online = computed(() => this.status() === 'online');
 
-  private readonly POLL_INTERVAL_MS = 15_000;
+  private readonly POLL_INTERVAL_MS = 10_000;
   private readonly REQUEST_TIMEOUT_MS = 5_000;
   private readonly HEALTH_PATH = '/health/ready';
 
