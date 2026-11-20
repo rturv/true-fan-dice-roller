@@ -17,6 +17,7 @@ describe('BackendHealthService', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     globalThis.fetch = originalFetch;
     const win = window as unknown as { __env?: Record<string, string> };
     win.__env = originalEnv;
@@ -87,24 +88,98 @@ describe('BackendHealthService', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.example.com/health/ready');
   });
 
-  it('shares a single polling timer across consumers (reference counting)', () => {
-    const setIntervalSpy = vi
-      .spyOn(globalThis, 'setInterval')
-      .mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => {});
-    globalThis.fetch = vi.fn().mockResolvedValue(healthResponse('UP'));
+  it('shares a single polling loop across consumers (reference counting)', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(healthResponse('UP'));
+    globalThis.fetch = fetchMock;
 
     const service = new BackendHealthService();
 
     service.start();
     service.start();
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
-    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 10_000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Con el backend en línea, el siguiente ciclo llega a los 15 s.
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Un consumidor se va: la monitorización sigue viva para el otro.
+    service.stop();
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // El último consumidor se va: se detiene el polling.
+    service.stop();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('polls every 15 seconds while the backend is online', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(healthResponse('UP'));
+    globalThis.fetch = fetchMock;
+
+    const service = new BackendHealthService();
+    service.start();
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     service.stop();
-    expect(clearIntervalSpy).not.toHaveBeenCalled();
+  });
+
+  it('retries every 5 seconds after a failed check', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockRejectedValue(new Error('backend down'));
+    globalThis.fetch = fetchMock;
+
+    const service = new BackendHealthService();
+    service.start();
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(service.status()).toBe('offline');
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     service.stop();
-    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns to the 15 second cadence once the backend recovers', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('backend down'))
+      .mockResolvedValue(healthResponse('UP'));
+    globalThis.fetch = fetchMock;
+
+    const service = new BackendHealthService();
+    service.start();
+
+    // Primer fallo → reintento a los 5 s y recuperación.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(service.status()).toBe('offline');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(service.status()).toBe('online');
+
+    // En línea de nuevo → 15 s hasta la siguiente comprobación.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    service.stop();
   });
 });

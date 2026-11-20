@@ -8,6 +8,9 @@ export type BackendStatus = 'checking' | 'online' | 'offline';
  * El endpoint `/health/ready` devuelve HTTP 200 con `{"status":"UP"}` cuando el
  * backend y su base de datos están operativos, y HTTP 503 en caso contrario.
  * El servicio hace polling periódico y expone el estado mediante signals.
+ * La cadencia es adaptativa: mientras el backend responde se comprueba cada
+ * 15 segundos, y si la última comprobación falló se reintenta cada 5 segundos
+ * para detectar antes la recuperación.
  */
 @Injectable({ providedIn: 'root' })
 export class BackendHealthService {
@@ -15,11 +18,14 @@ export class BackendHealthService {
   readonly lastChecked = signal<number | null>(null);
   readonly online = computed(() => this.status() === 'online');
 
-  private readonly POLL_INTERVAL_MS = 10_000;
+  /** Cadencia cuando el backend está en línea. */
+  private readonly ONLINE_POLL_INTERVAL_MS = 15_000;
+  /** Cadencia cuando la última comprobación falló. */
+  private readonly OFFLINE_POLL_INTERVAL_MS = 5_000;
   private readonly REQUEST_TIMEOUT_MS = 5_000;
   private readonly HEALTH_PATH = '/health/ready';
 
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private inFlight = false;
   private refCount = 0;
 
@@ -31,18 +37,14 @@ export class BackendHealthService {
     this.refCount++;
     if (this.refCount !== 1) return;
 
-    void this.check();
-    this.timer = setInterval(() => void this.check(), this.POLL_INTERVAL_MS);
+    this.scheduleNextCheck(0);
   }
 
   stop(): void {
     if (this.refCount > 0) this.refCount--;
     if (this.refCount !== 0) return;
 
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.clearTimer();
   }
 
   /** Ejecuta una comprobación inmediata del estado del backend. */
@@ -76,6 +78,32 @@ export class BackendHealthService {
       clearTimeout(timeoutId);
       this.lastChecked.set(Date.now());
       this.inFlight = false;
+    }
+  }
+
+  /** Cadencia aplicable tras la última comprobación. */
+  private nextInterval(): number {
+    return this.online() ? this.ONLINE_POLL_INTERVAL_MS : this.OFFLINE_POLL_INTERVAL_MS;
+  }
+
+  /**
+   * Programa la siguiente comprobación usando `setTimeout` en lugar de
+   * `setInterval`, para poder recalcular la espera tras cada respuesta.
+   */
+  private scheduleNextCheck(delayMs: number): void {
+    this.clearTimer();
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.check().finally(() => {
+        if (this.refCount > 0) this.scheduleNextCheck(this.nextInterval());
+      });
+    }, delayMs);
+  }
+
+  private clearTimer(): void {
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
     }
   }
 
