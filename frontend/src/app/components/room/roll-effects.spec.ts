@@ -5,7 +5,7 @@ import {
   clampDiceCount,
   detectRollEffects,
   rollThresholds,
-  rollVisualEffect,
+  rollVisualEffects,
 } from './roll-effects';
 
 function roll(initialCount: number, diceTotal: number, explosions: number, modifier = 0): DiceResult {
@@ -22,12 +22,12 @@ function roll(initialCount: number, diceTotal: number, explosions: number, modif
 
 describe('rollThresholds', () => {
   it('matches the documented thresholds', () => {
-    expect(rollThresholds(1)).toEqual({ legendary: 13, fumble: 1, chain: 2 });
-    expect(rollThresholds(2)).toEqual({ legendary: 20, fumble: 2, chain: 3 });
-    expect(rollThresholds(3)).toEqual({ legendary: 27, fumble: 3, chain: 3 });
-    expect(rollThresholds(5)).toEqual({ legendary: 40, fumble: 8, chain: 4 });
-    expect(rollThresholds(10)).toEqual({ legendary: 68, fumble: 23, chain: 6 });
-    expect(rollThresholds(20)).toEqual({ legendary: 121, fumble: 58, chain: 10 });
+    expect(rollThresholds(1)).toEqual({ legendary: 13, fumble: 1, chain: 2, bigChain: 5 });
+    expect(rollThresholds(2)).toEqual({ legendary: 20, fumble: 2, chain: 3, bigChain: 5 });
+    expect(rollThresholds(3)).toEqual({ legendary: 27, fumble: 3, chain: 3, bigChain: 5 });
+    expect(rollThresholds(5)).toEqual({ legendary: 40, fumble: 8, chain: 4, bigChain: 5 });
+    expect(rollThresholds(10)).toEqual({ legendary: 68, fumble: 23, chain: 6, bigChain: 8 });
+    expect(rollThresholds(20)).toEqual({ legendary: 121, fumble: 58, chain: 10, bigChain: 12 });
   });
 
   it('clamps the dice count', () => {
@@ -56,6 +56,25 @@ describe('detectRollEffects', () => {
     expect(detectRollEffects(roll(10, 50, 5))).toEqual([]);
   });
 
+  it('adds a big-chain marker only for big explosion chains', () => {
+    expect(detectRollEffects(roll(10, 50, 7))).toEqual(['chain']);
+    expect(detectRollEffects(roll(10, 50, 8))).toEqual(['chain', 'big-chain']);
+    expect(detectRollEffects(roll(20, 100, 11))).toEqual(['chain']);
+    expect(detectRollEffects(roll(20, 100, 12))).toEqual(['chain', 'big-chain']);
+  });
+
+  it('can return legendary, chain and big-chain at the same time', () => {
+    expect(detectRollEffects(roll(2, 50, 5))).toEqual([
+      'legendary',
+      'chain',
+      'big-chain',
+    ]);
+  });
+
+  it('keeps a fumble from getting chain markers', () => {
+    expect(detectRollEffects(roll(10, 5, 8))).toEqual(['fumble']);
+  });
+
   it('can return legendary and chain at the same time', () => {
     expect(detectRollEffects(roll(2, 22, 3))).toEqual(['legendary', 'chain']);
   });
@@ -78,6 +97,10 @@ describe('buildPreviewRoll', () => {
     ['chain', 3],
     ['chain', 6],
     ['chain', 20],
+    ['big-chain', 1],
+    ['big-chain', 3],
+    ['big-chain', 10],
+    ['big-chain', 20],
   ];
 
   it.each(cases)('builds a %s preview with %i dice', (kind, count) => {
@@ -101,6 +124,13 @@ describe('buildPreviewRoll', () => {
     expect(preview.diceTotal).toBeLessThan(rollThresholds(10).legendary);
   });
 
+  it('builds a big-chain preview with the big-chain marker', () => {
+    const preview = buildPreviewRoll('big-chain', 10);
+
+    expect(preview.explosions).toBe(rollThresholds(10).bigChain);
+    expect(detectRollEffects(preview)).toEqual(['chain', 'big-chain']);
+  });
+
   it('keeps a fumble preview with no explosions', () => {
     const preview = buildPreviewRoll('fumble', 5);
 
@@ -109,20 +139,34 @@ describe('buildPreviewRoll', () => {
   });
 });
 
-describe('rollVisualEffect', () => {
-  it('uses confetti for good rolls', () => {
-    expect(rollVisualEffect(['legendary'])).toBe('confetti');
-    expect(rollVisualEffect(['chain'])).toBe('confetti');
-    expect(rollVisualEffect(['legendary', 'chain'])).toBe('confetti');
+describe('rollVisualEffects', () => {
+  it('uses confetti for legendary rolls', () => {
+    expect(rollVisualEffects(['legendary'])).toEqual(['confetti']);
+  });
+
+  it('uses dice rain for big chains', () => {
+    expect(rollVisualEffects(['big-chain'])).toEqual(['dice-rain']);
+    expect(rollVisualEffects(['chain', 'big-chain'])).toEqual(['dice-rain']);
+  });
+
+  it('combines confetti and dice rain for legendary big chains', () => {
+    expect(rollVisualEffects(['legendary', 'chain', 'big-chain'])).toEqual([
+      'confetti',
+      'dice-rain',
+    ]);
+  });
+
+  it('does not add a visual layer for regular chains', () => {
+    expect(rollVisualEffects(['chain'])).toEqual([]);
   });
 
   it('uses the storm for a fumble', () => {
-    expect(rollVisualEffect(['fumble'])).toBe('storm');
-    expect(rollVisualEffect(['fumble', 'chain'])).toBe('storm');
+    expect(rollVisualEffects(['fumble'])).toEqual(['storm']);
+    expect(rollVisualEffects(['fumble', 'chain', 'big-chain'])).toEqual(['storm']);
   });
 
   it('returns nothing for ordinary rolls', () => {
-    expect(rollVisualEffect([])).toBeNull();
-    expect(rollVisualEffect(undefined)).toBeNull();
+    expect(rollVisualEffects([])).toEqual([]);
+    expect(rollVisualEffects(undefined)).toEqual([]);
   });
 });

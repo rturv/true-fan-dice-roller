@@ -7,13 +7,7 @@ import {
   output,
 } from '@angular/core';
 import type { EasterEggEffect } from './rotation';
-
-interface FallingDie {
-  left: number;
-  delay: number;
-  duration: number;
-  value: number;
-}
+import { DiceRainComponent } from '../dice-rain/dice-rain';
 
 interface ConfettiPiece {
   left: number;
@@ -46,21 +40,14 @@ const RANKS = ['1', '3', '7', '12'];
 
 @Component({
   selector: 'app-easter-egg',
+  imports: [DiceRainComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="egg" [attr.data-effect]="effect()" aria-hidden="true">
       @switch (effect()) {
         @case ('glitch-dice') {
           <div class="glitch"></div>
-          @for (die of dice; track $index) {
-            <span
-              class="falling-die"
-              [style.--x]="die.left + '%'"
-              [style.animation-delay.ms]="die.delay"
-              [style.animation-duration.ms]="die.duration"
-              >{{ die.value }}</span
-            >
-          }
+          <app-dice-rain variant="rain" [count]="30" />
         }
         @case ('giant-die') {
           <div class="giant-die">
@@ -132,20 +119,6 @@ const RANKS = ['1', '3', '7', '12'];
     .glitch::before { background: rgba(255, 0, 120, 0.1); transform: translateX(-3px); }
     .glitch::after { background: rgba(0, 220, 255, 0.1); transform: translateX(3px); }
 
-    .falling-die {
-      position: absolute; top: -70px; left: var(--x, 50%);
-      display: flex; align-items: center; justify-content: center;
-      width: 44px; height: 44px;
-      font-family: var(--font-display); font-size: 22px; font-weight: 700;
-      color: var(--accent); background: var(--surface);
-      border: 2px solid var(--accent); border-radius: 8px;
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
-      opacity: 0;
-      animation-name: die-fall;
-      animation-timing-function: linear;
-      animation-fill-mode: forwards;
-    }
-
     @keyframes egg-shake {
       0%, 100% { transform: translate(0, 0); }
       25% { transform: translate(2px, -1px); }
@@ -156,12 +129,6 @@ const RANKS = ['1', '3', '7', '12'];
       0% { opacity: 1; }
       70% { opacity: 0.6; }
       100% { opacity: 0; }
-    }
-    @keyframes die-fall {
-      0% { transform: translateY(0) rotate(0deg); opacity: 0; }
-      8% { opacity: 1; }
-      85% { opacity: 1; }
-      100% { transform: translateY(112vh) rotate(720deg); opacity: 0; }
     }
 
     /* ---------- Act 2: giant die ---------- */
@@ -275,13 +242,6 @@ const RANKS = ['1', '3', '7', '12'];
 export class EasterEggComponent implements OnInit, OnDestroy {
   readonly effect = input.required<EasterEggEffect>();
   readonly done = output<void>();
-
-  protected readonly dice: FallingDie[] = Array.from({ length: 30 }, () => ({
-    left: 2 + Math.random() * 94,
-    delay: Math.random() * 1400,
-    duration: 1400 + Math.random() * 900,
-    value: 1 + Math.floor(Math.random() * 6),
-  }));
 
   protected readonly confetti: ConfettiPiece[] = Array.from({ length: 30 }, () => ({
     left: 35 + Math.random() * 30,

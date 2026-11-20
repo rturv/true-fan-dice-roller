@@ -19,10 +19,10 @@ export type ChatCommand =
 const DICE_PATTERN = /^(\d{0,2})d6(?:\s*([+-])\s*(\d{1,2}))?$/i;
 
 /**
- * Hidden preview command: `/fx`, `/fx alta 5`, `/fx pifia`, `/fx cadena 10`
- * and the full-screen variant `/fx pantalla alta`.
+ * Hidden preview command: `/fx`, `/fx alta 5`, `/fx pifia`, `/fx cadena 10`,
+ * `/fx avalancha 10` and the full-screen variant `/fx pantalla alta`.
  */
-const FX_PATTERN = /^fx(?:\s+(pantalla))?(?:\s+(alta|legendaria|baja|pifia|cadena|[123]))?(?:\s+(\d{1,2}))?$/i;
+const FX_PATTERN = /^fx(?:\s+(pantalla))?(?:\s+(alta|legendaria|baja|pifia|cadena|avalancha|[123]))?(?:\s+(\d{1,2}))?$/i;
 
 // Same limits enforced by the backend (GameService).
 const DICE_MIN = 1;
@@ -58,8 +58,8 @@ export function parseChatCommand(raw: string): ChatCommand | null {
         ? 'legendary'
         : alias === 'baja' || alias === 'pifia' || alias === '2'
           ? 'fumble'
-          : alias === 'cadena' || alias === '3'
-            ? 'chain'
+          : alias === 'cadena' || alias === 'avalancha' || alias === '3'
+            ? 'big-chain'
             : null;
 
     return {

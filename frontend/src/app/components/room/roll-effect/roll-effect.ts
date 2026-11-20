@@ -8,6 +8,8 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { DiceRainComponent } from '../dice-rain/dice-rain';
+import type { DiceRainVariant } from '../dice-rain/dice-particles';
 import type { RollVisualEffect } from '../roll-effects';
 
 interface ConfettiPiece {
@@ -35,24 +37,29 @@ interface RainDrop {
 /**
  * Decorative layer for special rolls.
  *
+ * - `kinds` may contain several visuals (for example legendary + big chain);
+ *   they are layered together and share the same lifetime.
  * - `fullscreen = false`: the particles are clipped to the roll card.
  * - `fullscreen = true`: the layer covers the viewport (used for your own
  *   rolls only).
  *
- * Confetti is a party-popper burst; the fumble effect is plain rain.
+ * Confetti celebrates legendary rolls, the dice rain/avalanche highlights big
+ * explosion chains, and the storm is the fumble effect.
  */
 @Component({
   selector: 'app-roll-effect',
+  imports: [DiceRainComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (active()) {
       <div
         class="fx-layer"
         [class.fullscreen]="fullscreen()"
-        [attr.data-kind]="kind()"
+        [class.storm]="hasStorm()"
+        [attr.data-kinds]="kinds().join(' ')"
         aria-hidden="true"
       >
-        @if (kind() === 'confetti') {
+        @if (hasConfetti()) {
           @for (piece of confetti(); track $index) {
             <span
               [class]="'confetti-piece c' + piece.color"
@@ -69,7 +76,9 @@ interface RainDrop {
               [style.animation-duration.ms]="piece.duration"
             ></span>
           }
-        } @else {
+        }
+
+        @if (hasStorm()) {
           <span class="storm-flash"></span>
           @for (drop of drops(); track $index) {
             <span
@@ -81,6 +90,10 @@ interface RainDrop {
             ></span>
           }
         }
+
+        @if (hasDiceRain()) {
+          <app-dice-rain [variant]="rainVariant()" [count]="diceRainCount()" />
+        }
       </div>
     }
   `,
@@ -91,15 +104,16 @@ interface RainDrop {
       --rain: 240px;
       position: absolute; inset: 0; overflow: hidden;
       border-radius: inherit; pointer-events: none; z-index: 2;
+      container-type: inline-size;
     }
     .fx-layer.fullscreen {
       position: fixed; inset: 0; z-index: 850; border-radius: 0;
       --rain: 105vh;
     }
-    .fx-layer[data-kind='storm']:not(.fullscreen) {
+    .fx-layer.storm:not(.fullscreen) {
       background: color-mix(in oklab, var(--fg-2) 10%, transparent);
     }
-    .fx-layer.fullscreen[data-kind='storm'] {
+    .fx-layer.fullscreen.storm {
       background: rgba(0, 0, 0, 0.22);
     }
 
@@ -164,11 +178,35 @@ interface RainDrop {
   `,
 })
 export class RollEffectComponent implements OnInit, OnDestroy {
-  readonly kind = input.required<RollVisualEffect>();
+  readonly kinds = input.required<RollVisualEffect[]>();
   readonly fullscreen = input(false);
+  readonly intensity = input(0);
   readonly done = output<void>();
 
   protected readonly active = signal(true);
+  protected readonly hasConfetti = computed(() => this.kinds().includes('confetti'));
+  protected readonly hasStorm = computed(() => this.kinds().includes('storm'));
+  protected readonly hasDiceRain = computed(() => this.kinds().includes('dice-rain'));
+  protected readonly rainVariant = computed<DiceRainVariant>(() =>
+    this.fullscreen() ? 'rain' : 'avalanche'
+  );
+
+  /**
+   * More explosions mean more dice. Combined rolls (legendary + big chain)
+   * are slightly thinned so both effects stay readable.
+   */
+  protected readonly diceRainCount = computed(() => {
+    const fullscreen = this.fullscreen();
+    const base = fullscreen ? 22 : 10;
+    const perExplosion = fullscreen ? 2 : 0.8;
+    const max = fullscreen ? 48 : 18;
+    const combined = this.hasConfetti() ? 0.8 : 1;
+    const raw = Math.round(
+      (base + Math.max(0, this.intensity()) * perExplosion) * combined
+    );
+    const capped = Math.min(max, Math.max(fullscreen ? 18 : 8, raw));
+    return this.isNarrowScreen() ? Math.min(capped, fullscreen ? 26 : 12) : capped;
+  });
 
   private readonly allConfetti = Array.from({ length: 90 }, () => ({
     x: 30 + Math.random() * 40,
@@ -191,7 +229,12 @@ export class RollEffectComponent implements OnInit, OnDestroy {
 
   protected readonly confetti = computed<ConfettiPiece[]>(() => {
     const fullscreen = this.fullscreen();
-    const pieces = fullscreen ? this.allConfetti : this.allConfetti.slice(0, 42);
+    const diceRain = this.hasDiceRain();
+    const pieces = fullscreen
+      ? diceRain
+        ? this.allConfetti.slice(0, 64)
+        : this.allConfetti
+      : this.allConfetti.slice(0, diceRain ? 30 : 42);
     const unitX = fullscreen ? 'vw' : 'px';
     const unitY = fullscreen ? 'vh' : 'px';
     const spreadX = fullscreen ? 42 : 180;
@@ -221,16 +264,28 @@ export class RollEffectComponent implements OnInit, OnDestroy {
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
-    this.timer = setTimeout(
-      () => {
-        this.active.set(false);
-        this.done.emit();
-      },
-      this.fullscreen() ? 4200 : 3800
-    );
+    this.timer = setTimeout(() => {
+      this.active.set(false);
+      this.done.emit();
+    }, this.duration());
   }
 
   ngOnDestroy(): void {
     if (this.timer) clearTimeout(this.timer);
+  }
+
+  private duration(): number {
+    const fullscreen = this.fullscreen();
+    if (this.hasDiceRain()) return fullscreen ? 4600 : 3200;
+    if (this.hasStorm()) return fullscreen ? 4200 : 3800;
+    return fullscreen ? 4200 : 3800;
+  }
+
+  private isNarrowScreen(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width: 600px)').matches
+    );
   }
 }

@@ -51,7 +51,7 @@ flowchart LR
 
 - **Salas en tiempo real** con código de 7 caracteres, nickname y sesión firmada con JWT (reconexión automática).
 - **Dados d6 explosivos**: cada 6 genera otra tirada; soporte de modificador y de una reserva compartida (`pool`).
-- **Efectos de tirada**: confeti para las tiradas buenas y lluvia para las pifias, dentro de la tarjeta y a pantalla completa solo para el autor (comando oculto `/fx` para previsualizarlos).
+- **Efectos de tirada**: confeti para las tiradas legendarias, lluvia de dados/avalancha para las cadenas grandes y lluvia para las pifias, dentro de la tarjeta y a pantalla completa solo para el autor (comando oculto `/fx` para previsualizarlos).
 - **Baraja española** de 50 naipes (incluidos los dos comodines), desactivada por defecto en salas nuevas, con rebarajado automático al salir un comodín o agotarse el mazo.
 - **Chat** con historial reciente, entradas de sistema (altas, bajas, cambios de admin, tiradas y cartas) e historial local de mensajes con `↑`/`↓`.
 - **Comandos de chat**: `/carta`, `/roll` y `/Nd6±M` (por ejemplo `/3d6+3`). Lo que no encaja con un comando se envía como mensaje normal.
@@ -78,9 +78,10 @@ E = explosions  número de dados extra generados (cada 6 encadena otro dado)
 μ = 4.2 · n
 σ = 3.262 · √n
 
-legendaria:  Σ ≥ ceil(μ + 2.5σ)
-pifia:       n ≥ 2 y Σ ≤ max(n, floor(μ − 1.75σ))
-cadena:      E ≥ ceil(0.2n + 2.5 · 0.49√n)
+legendaria:     Σ ≥ ceil(μ + 2.5σ)
+pifia:          n ≥ 2 y Σ ≤ max(n, floor(μ − 1.75σ))
+cadena:         E ≥ ceil(0.2n + 2.5 · 0.49√n)
+cadena grande:  E ≥ max(5, ceil(0.2n + 3.5 · 0.49√n))
 ```
 
 De dónde salen los números:
@@ -93,18 +94,18 @@ De dónde salen los números:
 
 Umbrales para los recuentos más habituales:
 
-| Dados (n) | Legendaria (Σ ≥) | Pifia (Σ ≤) | Cadena (E ≥) | Probabilidad aprox. (L / P / C) |
-|---:|---:|---:|---:|---|
-| 1 | 13 | — | 2 | 2.8 % / — / 2.8 % |
-| 2 | 20 | 2 | 3 | 3.0 % / 2.8 % / 1.6 % |
-| 3 | 27 | 3 | 3 | 2.5 % / 0.5 % / 3.6 % |
-| 4 | 34 | 5 | 4 | 2.0 % / 0.4 % / 1.8 % |
-| 5 | 40 | 8 | 4 | 1.9 % / 0.7 % / 3.1 % |
-| 6 | 46 | 11 | 5 | 1.8 % / 1.0 % / 1.6 % |
-| 10 | 68 | 23 | 6 | 1.7 % / 1.2 % / 2.7 % |
-| 20 | 121 | 58 | 10 | 1.4 % / 2.4 % / 1.5 % |
+| Dados (n) | Legendaria (Σ ≥) | Pifia (Σ ≤) | Cadena (E ≥) | Cadena grande (E ≥) |
+|---:|---:|---:|---:|---:|
+| 1 | 13 | — | 2 | 5 |
+| 2 | 20 | 2 | 3 | 5 |
+| 3 | 27 | 3 | 3 | 5 |
+| 4 | 34 | 5 | 4 | 5 |
+| 5 | 40 | 8 | 4 | 5 |
+| 6 | 46 | 11 | 5 | 6 |
+| 10 | 68 | 23 | 6 | 8 |
+| 20 | 121 | 58 | 10 | 12 |
 
-Las tres condiciones son independientes entre sí: una misma tirada puede ser legendaria y cadena a la vez. La pifia y la cadena no se muestran juntas.
+La cadena grande es un escalón superior y mucho más raro que la cadena normal: solo ella dispara la lluvia de dados/avalancha. Las condiciones son independientes entre sí: una misma tirada puede ser legendaria y cadena (o cadena grande) a la vez. La pifia y la cadena no se muestran juntas.
 
 ### Ejemplos
 
@@ -116,12 +117,13 @@ n = 2, Σ = 22, E = 2
 22 ≥ 20 → legendaria; 2 < 3 → no hay cadena
 ```
 
-**Legendaria y cadena a la vez con 2 dados**
+**Legendaria y cadena grande a la vez con 2 dados**
 
 ```text
-valores: [6, 6, 6, 1, 1]
-n = 2, Σ = 20, E = 3
-20 ≥ 20 → legendaria; 3 ≥ 3 → también cadena
+valores: [6, 6, 6, 6, 6, 6, 1, 1]
+n = 2, Σ = 38, E = 6
+38 ≥ 20 → legendaria; 6 ≥ 5 → también cadena grande
+→ confeti + lluvia de dados/avalancha
 ```
 
 **Legendaria sin cadena con 5 dados**
@@ -132,12 +134,22 @@ n = 5 (los cinco primeros), E = 3, Σ = 43
 43 ≥ 40 → legendaria; 3 < 4 → no hay cadena
 ```
 
-**Cadena sin legendaria con 5 dados**
+**Cadena media sin legendaria con 5 dados**
 
 ```text
 valores: [6, 6, 6, 6, 1, 1, 1, 1, 1]
 n = 5, E = 4, Σ = 29
-29 < 40 → no es legendaria; 4 ≥ 4 → cadena
+29 < 40 → no es legendaria; 4 ≥ 4 → cadena normal
+→ solo chip "⚡ cadena ×4", sin lluvia de dados
+```
+
+**Cadena grande sin legendaria con 10 dados**
+
+```text
+valores: [6, 6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+n = 10, E = 8, Σ = 58
+58 < 68 → no es legendaria; 8 ≥ 8 → cadena grande
+→ avalancha dentro de la tarjeta (o lluvia a pantalla completa si eres el autor)
 ```
 
 **Pifia con 5 dados**
@@ -157,22 +169,27 @@ valores: [1, 1], modificador: +99
 
 ### Qué se ve
 
-- **Legendaria** y **cadena** → confeti.
+- **Legendaria** → confeti.
+- **Cadena grande** → lluvia de dados a pantalla completa para el autor y avalancha dentro de la tarjeta para el resto.
+- **Legendaria + cadena grande** → confeti y dados a la vez, en ambas modalidades.
 - **Pifia** → lluvia.
+- Las cadenas medianas conservan el chip `⚡ cadena ×N` y la animación sutil de los dados, pero no disparan la capa de lluvia/avalancha.
 - Los demás jugadores lo ven dentro de la tarjeta de la tirada. Si eres tú quien lanza, el efecto ocupa la pantalla.
 - Los chips (`✦ tirada legendaria`, `✖ pifia`, `⚡ cadena ×N`) quedan en la entrada como registro; las partículas son transitorias.
 
 Comandos ocultos de prueba, locales y sin enviar nada a la sala:
 
 ```text
-/fx                    rota legendaria → pifia → cadena
+/fx                    rota legendaria → pifia → cadena grande
 /fx alta 5             confeti dentro de la tarjeta
 /fx pifia              lluvia dentro de la tarjeta
-/fx cadena             confeti dentro de la tarjeta
+/fx cadena             avalancha dentro de la tarjeta
+/fx avalancha 10       avalancha sin confeti dentro de la tarjeta
+/fx pantalla cadena    lluvia de dados a pantalla completa
 /fx pantalla alta 5    confeti a pantalla completa
 ```
 
-La lógica está en `frontend/src/app/components/room/roll-effects.ts` (umbrales y detección) y la capa visual en `frontend/src/app/components/room/roll-effect/roll-effect.ts`.
+La lógica está en `frontend/src/app/components/room/roll-effects.ts` (umbrales y detección), la capa visual en `frontend/src/app/components/room/roll-effect/roll-effect.ts` y las partículas de dados en `frontend/src/app/components/room/dice-rain/`.
 
 ---
 
@@ -504,6 +521,7 @@ Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
 ├── frontend/                             # Angular 21
 │   ├── src/app/components/lobby/         # Pantalla de entrada
 │   ├── src/app/components/room/          # Sala, comandos de chat y listado de jugadores
+│   ├── src/app/components/room/dice-rain/ # Lluvia de dados y avalancha compartidas
 │   ├── src/app/components/room/easter-egg/ # Efectos secretos
 │   ├── src/app/components/backend-status-indicator/
 │   ├── src/app/services/                 # WebSocket y health check

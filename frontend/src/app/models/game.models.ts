@@ -18,7 +18,7 @@ export interface CardInfo {
   shortName: string;
 }
 
-export type RollEffectKind = 'legendary' | 'fumble' | 'chain';
+export type RollEffectKind = 'legendary' | 'fumble' | 'chain' | 'big-chain';
 
 export interface DrawResult {
   card: CardInfo;

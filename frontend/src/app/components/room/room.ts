@@ -13,7 +13,7 @@ import type {
 } from '../../models/game.models';
 import { parseChatCommand } from './chat-commands';
 import { ChatHistoryStore } from './chat-history';
-import { buildPreviewRoll, detectRollEffects, PREVIEW_ORDER, rollVisualEffect } from './roll-effects';
+import { buildPreviewRoll, detectRollEffects, PREVIEW_ORDER, rollVisualEffects } from './roll-effects';
 import type { RollVisualEffect } from './roll-effects';
 import { RollEffectComponent } from './roll-effect/roll-effect';
 import { EasterEggComponent } from './easter-egg/easter-egg';
@@ -157,7 +157,8 @@ import {
             <div class="roll-entry fade-in" [class.self-roll]="entry.isSelf"
                  [class.fx-legendary]="hasFx(entry, 'legendary')"
                  [class.fx-fumble]="hasFx(entry, 'fumble')"
-                 [class.fx-chain]="hasFx(entry, 'chain')">
+                 [class.fx-chain]="hasFx(entry, 'chain')"
+                 [class.fx-big-chain]="hasFx(entry, 'big-chain')">
               <div class="roll-entry-header">
                 <span class="roll-user">{{ entry.nickname }}@if (entry.isSelf) {<span class="badge-you">you</span>}@if (entry.preview) {<span class="badge-demo">demo</span>}<span class="roll-formula">{{ rollFormula(entry.result!) }}</span></span>
                 <span class="roll-time">{{ entry.timestamp | date:'HH:mm' }}</span>
@@ -199,9 +200,10 @@ import {
                   <span class="roll-fx-chip chain">⚡ cadena ×{{ entry.result!.explosions }}</span>
                 }
               </div>
-              @if (visualFx(entry); as fx) {
-                @if ((!entry.isSelf || entry.preview) && !entry.previewFullscreen) {
-                  <app-roll-effect [kind]="fx" />
+              @if ((!entry.isSelf || entry.preview) && !entry.previewFullscreen) {
+                @let fxList = visualFxList(entry);
+                @if (fxList.length) {
+                  <app-roll-effect [kinds]="fxList" [intensity]="entry.result!.explosions" />
                 }
               }
             </div>
@@ -356,7 +358,7 @@ import {
     }
 
     @for (fx of selfFxList(); track fx.id) {
-      <app-roll-effect [kind]="fx.kind" [fullscreen]="true" (done)="onSelfFxDone(fx.id)" />
+      <app-roll-effect [kinds]="fx.kinds" [intensity]="fx.intensity" [fullscreen]="true" (done)="onSelfFxDone(fx.id)" />
     }
 
     @if (easterEggActive()) {
@@ -601,6 +603,7 @@ import {
     .fx-fumble .roll-total { color: var(--danger); }
     .fx-fumble .die { animation: die-fumble 340ms var(--ease-standard); }
     .fx-chain .die { animation: die-chain 720ms var(--ease-standard) both; }
+    .fx-big-chain .chain-spark { display: none; }
     .chain-spark {
       position: absolute; bottom: 6px; width: 5px; height: 5px; border-radius: 50%;
       background: var(--accent); opacity: 0; pointer-events: none;
@@ -1036,7 +1039,7 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   protected copied = signal(false);
   protected chatText = signal('');
 
-  protected readonly selfFx = signal<{ kind: RollVisualEffect; id: number } | null>(null);
+  protected readonly selfFx = signal<{ kinds: RollVisualEffect[]; id: number; intensity: number } | null>(null);
   protected readonly selfFxList = computed(() => {
     const fx = this.selfFx();
     return fx ? [fx] : [];
@@ -1181,8 +1184,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
         result: msg.result,
         effects
       });
-      const visual = rollVisualEffect(effects);
-      if (isSelf && visual) this.showSelfFx(visual);
+      const visual = rollVisualEffects(effects);
+      if (isSelf && visual.length) this.showSelfFx(visual, msg.result.explosions ?? 0);
     }));
 
     this.cleanupFns.push(this.ws.on('card_draw', (data: unknown) => {
@@ -1371,8 +1374,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     return entry.effects?.includes(kind) ?? false;
   }
 
-  protected visualFx(entry: ChatDisplayEntry): RollVisualEffect | null {
-    return rollVisualEffect(entry.effects);
+  protected visualFxList(entry: ChatDisplayEntry): RollVisualEffect[] {
+    return rollVisualEffects(entry.effects);
   }
 
   protected reshuffleReasonLabel(reason?: 'joker' | 'empty'): string {
@@ -1382,8 +1385,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
   }
 
   /** Full-screen celebration shown only to the player who rolled. */
-  private showSelfFx(kind: RollVisualEffect): void {
-    this.selfFx.set({ kind, id: ++this.selfFxId });
+  private showSelfFx(kinds: RollVisualEffect[], intensity: number): void {
+    this.selfFx.set({ kinds, id: ++this.selfFxId, intensity });
   }
 
   protected onSelfFxDone(id: number): void {
@@ -1413,8 +1416,8 @@ export class RoomComponent implements AfterViewInit, OnDestroy {
     });
 
     if (fullscreen) {
-      const visual = rollVisualEffect(effects);
-      if (visual) this.showSelfFx(visual);
+      const visuals = rollVisualEffects(effects);
+      if (visuals.length) this.showSelfFx(visuals, result.explosions);
     }
   }
 
