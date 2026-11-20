@@ -22,12 +22,37 @@ function roll(initialCount: number, diceTotal: number, explosions: number, modif
 
 describe('rollThresholds', () => {
   it('matches the documented thresholds', () => {
-    expect(rollThresholds(1)).toEqual({ legendary: 13, fumble: 1, chain: 2, bigChain: 5 });
-    expect(rollThresholds(2)).toEqual({ legendary: 20, fumble: 2, chain: 3, bigChain: 5 });
-    expect(rollThresholds(3)).toEqual({ legendary: 27, fumble: 3, chain: 3, bigChain: 5 });
-    expect(rollThresholds(5)).toEqual({ legendary: 40, fumble: 8, chain: 4, bigChain: 5 });
-    expect(rollThresholds(10)).toEqual({ legendary: 68, fumble: 23, chain: 6, bigChain: 8 });
-    expect(rollThresholds(20)).toEqual({ legendary: 121, fumble: 58, chain: 10, bigChain: 12 });
+    expect(rollThresholds(1)).toEqual({ legendary: 13, fumble: 1, chain: 2, bigChain: 3 });
+    expect(rollThresholds(2)).toEqual({ legendary: 20, fumble: 2, chain: 3, bigChain: 3 });
+    expect(rollThresholds(3)).toEqual({ legendary: 27, fumble: 3, chain: 3, bigChain: 3 });
+    expect(rollThresholds(5)).toEqual({ legendary: 40, fumble: 8, chain: 4, bigChain: 4 });
+    expect(rollThresholds(10)).toEqual({ legendary: 68, fumble: 23, chain: 6, bigChain: 7 });
+    expect(rollThresholds(20)).toEqual({ legendary: 121, fumble: 58, chain: 10, bigChain: 10 });
+  });
+
+  /** P(E >= k): the number of sixes of an exploding d6 pool is negative binomial. */
+  function sixesTail(n: number, k: number): number {
+    const p = 1 / 6;
+    const q = 5 / 6;
+    let term = q ** n;
+    let tail = 0;
+    for (let e = 0; e < 500; e++) {
+      if (e >= k) tail += term;
+      term *= ((n + e) / (e + 1)) * (p / q);
+    }
+    return tail;
+  }
+
+  it('fires the avalanche at least twice as often as before, for every dice count', () => {
+    // Previous big-chain threshold: max(5, ceil(0.2n + 3.5 * 0.49 * sqrt(n))).
+    const previous = (n: number) => Math.max(5, Math.ceil(0.2 * n + 3.5 * 0.49 * Math.sqrt(n)));
+
+    for (let n = 1; n <= 20; n++) {
+      const before = sixesTail(n, previous(n));
+      const after = sixesTail(n, rollThresholds(n).bigChain);
+
+      expect(after).toBeGreaterThanOrEqual(before * 2);
+    }
   });
 
   it('clamps the dice count', () => {
@@ -57,10 +82,15 @@ describe('detectRollEffects', () => {
   });
 
   it('adds a big-chain marker only for big explosion chains', () => {
-    expect(detectRollEffects(roll(10, 50, 7))).toEqual(['chain']);
-    expect(detectRollEffects(roll(10, 50, 8))).toEqual(['chain', 'big-chain']);
-    expect(detectRollEffects(roll(20, 100, 11))).toEqual(['chain']);
-    expect(detectRollEffects(roll(20, 100, 12))).toEqual(['chain', 'big-chain']);
+    expect(detectRollEffects(roll(10, 50, 6))).toEqual(['chain']);
+    expect(detectRollEffects(roll(10, 50, 7))).toEqual(['chain', 'big-chain']);
+    expect(detectRollEffects(roll(10, 50, 9))).toEqual(['chain', 'big-chain']);
+  });
+
+  it('lets small rolls fire the avalanche without needing five sixes', () => {
+    expect(detectRollEffects(roll(2, 10, 2))).toEqual([]);
+    expect(detectRollEffects(roll(2, 10, 3))).toEqual(['chain', 'big-chain']);
+    expect(detectRollEffects(roll(3, 10, 3))).toEqual(['chain', 'big-chain']);
   });
 
   it('can return legendary, chain and big-chain at the same time', () => {
@@ -76,7 +106,7 @@ describe('detectRollEffects', () => {
   });
 
   it('can return legendary and chain at the same time', () => {
-    expect(detectRollEffects(roll(2, 22, 3))).toEqual(['legendary', 'chain']);
+    expect(detectRollEffects(roll(10, 70, 6))).toEqual(['legendary', 'chain']);
   });
 
   it('ignores the modifier', () => {

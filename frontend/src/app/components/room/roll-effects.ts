@@ -20,10 +20,17 @@ const HIGH_Z = 2.5;
 const LOW_Z = 1.75;
 /** z-score used for the explosion count. */
 const CHAIN_Z = 2.5;
-/** z-score used for a big explosion chain. */
-const BIG_CHAIN_Z = 3.5;
+/**
+ * z-score used for a big explosion chain.
+ *
+ * Only 0.2 above `CHAIN_Z`, so with two to nine dice both thresholds round to
+ * the same number (any chain already fires the avalanche) and with more dice
+ * it sometimes asks for one extra six. That keeps the effect between ~1 in 30
+ * and ~1 in 120 rolls instead of the old 1 in 100-1500.
+ */
+const BIG_CHAIN_Z = 2.7;
 /** A big chain always needs at least this many explosions. */
-const BIG_CHAIN_MIN = 5;
+const BIG_CHAIN_MIN = 3;
 
 const MIN_DICE = 1;
 const MAX_DICE = 20;

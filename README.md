@@ -81,7 +81,7 @@ E = explosions  número de dados extra generados (cada 6 encadena otro dado)
 legendaria:     Σ ≥ ceil(μ + 2.5σ)
 pifia:          n ≥ 2 y Σ ≤ max(n, floor(μ − 1.75σ))
 cadena:         E ≥ ceil(0.2n + 2.5 · 0.49√n)
-cadena grande:  E ≥ max(5, ceil(0.2n + 3.5 · 0.49√n))
+cadena grande:  E ≥ max(3, ceil(0.2n + 2.7 · 0.49√n))
 ```
 
 De dónde salen los números:
@@ -90,22 +90,23 @@ De dónde salen los números:
 - La desviación típica del d6 explosivo es aproximadamente `3.262`.
 - El número de explosiones por dado sigue una geométrica con media `0.2` y desviación `0.49`.
 - La distribución tiene una cola derecha más larga, por eso la z de pifia (`1.75`) es menor que la de legendaria (`2.5`): así ambas son raras de forma parecida.
+- La z de cadena grande (`2.7`) está solo 0.2 por encima de la de cadena y su mínimo es 3 seises: antes (`3.5` y mínimo 5) el efecto salía 1 de cada 100-1500 tiradas y con 2 dados exigía 5 seises, algo prácticamente imposible.
 - El modificador **no cuenta** para disparar el efecto, solo para el total que se muestra en la tirada.
 
 Umbrales para los recuentos más habituales:
 
 | Dados (n) | Legendaria (Σ ≥) | Pifia (Σ ≤) | Cadena (E ≥) | Cadena grande (E ≥) |
 |---:|---:|---:|---:|---:|
-| 1 | 13 | — | 2 | 5 |
-| 2 | 20 | 2 | 3 | 5 |
-| 3 | 27 | 3 | 3 | 5 |
-| 4 | 34 | 5 | 4 | 5 |
-| 5 | 40 | 8 | 4 | 5 |
-| 6 | 46 | 11 | 5 | 6 |
-| 10 | 68 | 23 | 6 | 8 |
-| 20 | 121 | 58 | 10 | 12 |
+| 1 | 13 | — | 2 | 3 |
+| 2 | 20 | 2 | 3 | 3 |
+| 3 | 27 | 3 | 3 | 3 |
+| 4 | 34 | 5 | 4 | 4 |
+| 5 | 40 | 8 | 4 | 4 |
+| 6 | 46 | 11 | 5 | 5 |
+| 10 | 68 | 23 | 6 | 7 |
+| 20 | 121 | 58 | 10 | 10 |
 
-La cadena grande es un escalón superior y mucho más raro que la cadena normal: solo ella dispara la lluvia de dados/avalancha. Las condiciones son independientes entre sí: una misma tirada puede ser legendaria y cadena (o cadena grande) a la vez. La pifia y la cadena no se muestran juntas.
+La cadena grande es la que dispara la lluvia de dados/avalancha. Su umbral va muy pegado al de la cadena normal: con dos a nueve dados son el mismo número (cualquier cadena ya es una avalancha) y con más dados casi siempre coincide o pide un seis más. En la práctica salta entre 1 de cada 30 y 1 de cada 120 tiradas con dos o más dados, frente a 1 de cada 100-1500 antes. Las condiciones son independientes entre sí: una misma tirada puede ser legendaria y cadena (o cadena grande) a la vez. La pifia y la cadena no se muestran juntas.
 
 ### Ejemplos
 
@@ -122,7 +123,7 @@ n = 2, Σ = 22, E = 2
 ```text
 valores: [6, 6, 6, 6, 6, 6, 1, 1]
 n = 2, Σ = 38, E = 6
-38 ≥ 20 → legendaria; 6 ≥ 5 → también cadena grande
+38 ≥ 20 → legendaria; 6 ≥ 3 → también cadena grande
 → confeti + lluvia de dados/avalancha
 ```
 
@@ -134,13 +135,13 @@ n = 5 (los cinco primeros), E = 3, Σ = 43
 43 ≥ 40 → legendaria; 3 < 4 → no hay cadena
 ```
 
-**Cadena media sin legendaria con 5 dados**
+**Cadena normal sin legendaria con 10 dados**
 
 ```text
-valores: [6, 6, 6, 6, 1, 1, 1, 1, 1]
-n = 5, E = 4, Σ = 29
-29 < 40 → no es legendaria; 4 ≥ 4 → cadena normal
-→ solo chip "⚡ cadena ×4", sin lluvia de dados
+valores: [6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+n = 10, E = 6, Σ = 46
+46 < 68 → no es legendaria; 6 ≥ 6 → cadena normal, pero 6 < 7 → no es grande
+→ solo chip "⚡ cadena ×6", sin lluvia de dados
 ```
 
 **Cadena grande sin legendaria con 10 dados**
@@ -148,7 +149,7 @@ n = 5, E = 4, Σ = 29
 ```text
 valores: [6, 6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 n = 10, E = 8, Σ = 58
-58 < 68 → no es legendaria; 8 ≥ 8 → cadena grande
+58 < 68 → no es legendaria; 8 ≥ 7 → cadena grande
 → avalancha dentro de la tarjeta (o lluvia a pantalla completa si eres el autor)
 ```
 
