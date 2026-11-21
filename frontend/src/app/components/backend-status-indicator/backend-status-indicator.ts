@@ -60,12 +60,16 @@ import { BackendHealthService } from '../../services/backend-health';
     .status-pill.offline {
       color: var(--danger);
       border-color: color-mix(in oklab, var(--danger) 45%, var(--border-soft));
-      /* Latido suave: sugiere que seguimos reintentando la conexion. */
-      animation: status-retry 2.4s ease-in-out infinite;
     }
     .status-pill.offline .status-dot {
       background: var(--danger);
       box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger) 18%, transparent);
+      /* La bolita acompana al mensaje para que el "reintento" se lea de un vistazo. */
+      animation: status-retry 1.8s ease-in-out infinite;
+    }
+    /* Latido del mensaje: sugiere que seguimos reintentando la conexion. */
+    .status-pill.offline .status-text {
+      animation: status-retry 1.8s ease-in-out infinite;
     }
     .status-pill.checking .status-dot {
       animation: status-pulse 1.2s ease-in-out infinite;
@@ -76,10 +80,11 @@ import { BackendHealthService } from '../../services/backend-health';
     }
     @keyframes status-retry {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.55; }
+      50% { opacity: 0.3; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .status-pill.offline,
+      .status-pill.offline .status-text,
+      .status-pill.offline .status-dot,
       .status-pill.checking .status-dot { animation: none; }
     }
     /* En movil (tambien en horizontal) oculta el texto cuando hay conexion,
