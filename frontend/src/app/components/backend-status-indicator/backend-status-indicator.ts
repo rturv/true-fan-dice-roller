@@ -60,6 +60,8 @@ import { BackendHealthService } from '../../services/backend-health';
     .status-pill.offline {
       color: var(--danger);
       border-color: color-mix(in oklab, var(--danger) 45%, var(--border-soft));
+      /* Latido suave: sugiere que seguimos reintentando la conexion. */
+      animation: status-retry 2.4s ease-in-out infinite;
     }
     .status-pill.offline .status-dot {
       background: var(--danger);
@@ -71,6 +73,14 @@ import { BackendHealthService } from '../../services/backend-health';
     @keyframes status-pulse {
       0%, 100% { opacity: 0.35; }
       50% { opacity: 1; }
+    }
+    @keyframes status-retry {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status-pill.offline,
+      .status-pill.checking .status-dot { animation: none; }
     }
     /* En movil (tambien en horizontal) oculta el texto cuando hay conexion,
        dejando el pill con la bolita verde. Offline/checking mantienen el texto. */
