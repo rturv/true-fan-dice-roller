@@ -1,10 +1,10 @@
 package es.rtur.truefan.diceroller.service;
 
+import es.rtur.truefan.diceroller.config.CleanupConfig;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 /**
@@ -20,29 +20,30 @@ public class RoomCleanupService {
 
     private static final Logger LOG = Logger.getLogger(RoomCleanupService.class);
 
+    private final RoomService roomService;
+    private final CleanupConfig config;
+
     @Inject
-    RoomService roomService;
-
-    @ConfigProperty(name = "diceroller.rooms.cleanup.enabled", defaultValue = "true")
-    boolean enabled;
-
-    @ConfigProperty(name = "diceroller.rooms.cleanup.inactivity-hours", defaultValue = "24")
-    long inactivityHours;
+    public RoomCleanupService(RoomService roomService, CleanupConfig config) {
+        this.roomService = roomService;
+        this.config = config;
+    }
 
     void onStart(@Observes StartupEvent event) {
-        if (!enabled) {
+        if (!config.enabled()) {
             LOG.info("Room cleanup on startup is disabled");
             return;
         }
-        if (inactivityHours < 0) {
-            LOG.warnf("Invalid diceroller.rooms.cleanup.inactivity-hours=%d, skipping cleanup", inactivityHours);
+        if (config.inactivityHours() < 0) {
+            LOG.warnf("Invalid diceroller.rooms.cleanup.inactivity-hours=%d, skipping cleanup",
+                    config.inactivityHours());
             return;
         }
 
         try {
-            int deleted = roomService.deleteInactiveRooms(inactivityHours);
+            int deleted = roomService.deleteInactiveRooms(config.inactivityHours());
             LOG.infof("Room cleanup: deleted %d inactive room(s) with no activity in the last %d hour(s)",
-                deleted, inactivityHours);
+                    deleted, config.inactivityHours());
         } catch (Exception e) {
             LOG.error("Room cleanup failed", e);
         }

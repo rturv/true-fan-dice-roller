@@ -12,7 +12,7 @@ Aplicación web tipo "chat room" con dos pantallas:
 1. **Pantalla de entrada** (`/`): permite al usuario elegir un nickname temporal y crear una sala nueva o unirse a una existente mediante un código.
 2. **Pantalla de sala** (`/room/:code`): sala de chat en tiempo real donde los participantes lanzan dados d6 con modificador opcional, sacan cartas de una baraja española virtual, y envían mensajes de texto.
 
-La comunicación frontend-backend se realiza **exclusivamente mediante WebSockets**. El backend expone endpoints REST únicamente para health checks.
+La comunicación frontend-backend se realiza **exclusivamente mediante WebSockets**. El backend expone endpoints HTTP únicamente para health checks.
 
 ---
 
@@ -22,7 +22,7 @@ La comunicación frontend-backend se realiza **exclusivamente mediante WebSocket
 |------|-----------|
 | Frontend | Angular 21+ (standalone components, signals, OnPush) |
 | Backend | Quarkus 3.36.1 (Java 21) |
-| WebSockets | Jakarta WebSocket (ServerEndpoint en Quarkus) |
+| WebSockets | Quarkus WebSockets Next (`@WebSocket` / `WebSocketConnection`) |
 | Persistencia | Hibernate ORM con Panache (JPA) |
 | BD Desarrollo | H2 en memoria |
 | BD Producción | PostgreSQL |
