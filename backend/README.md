@@ -104,6 +104,16 @@ If you want to learn more about building native executables, please consult <htt
 - `entity/`: entidades JPA (`Room`, `RoomUser`, `ChatEntry`).
 - `config/`: configuración tipada (`JwtConfig`, `CleanupConfig`).
 
+## Concurrencia
+
+Las operaciones que modifican el estado de una sala (`draw_card`, `pool_delta`,
+`pool_set`, `reshuffle_deck`, `toggle_cards`, transferencia de admin y
+`kick_user`) bloquean la fila `Room` con `LockModeType.PESSIMISTIC_WRITE`.
+Así dos mensajes simultáneos de la misma sala no pueden pisarse: el segundo
+espera a que el primero haga commit y lee el estado actualizado. El bloqueo
+está en base de datos, por lo que también funciona con varias instancias del
+backend.
+
 ## Configuración de producción
 
 - `DB_URL`, `DB_USER`, `DB_PASSWORD`: PostgreSQL.

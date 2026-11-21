@@ -13,6 +13,7 @@ import es.rtur.truefan.diceroller.service.GameService.DrawResult;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -281,11 +282,11 @@ public class RoomService {
 
     @Transactional
     public CardDrawResult performCardDraw(RoomUser user) {
-        Room room = user.room;
+        // Serializa las operaciones sobre la baraja de una misma sala.
+        Room room = lockRoom(user.room.id);
         List<CardInfo> deck = gameService.jsonToDeck(room.deckState);
         DrawResult drawResult = gameService.drawCard(deck);
         room.deckState = gameService.deckToJson(deck);
-        entityManager.merge(room);
 
         String content = toJson(drawResult, "{}");
 
@@ -321,69 +322,67 @@ public class RoomService {
 
     @Transactional
     public PoolResult poolDelta(RoomUser user, int delta) {
-        Room room = user.room;
+        // Serializa los cambios de pool de una misma sala.
+        Room room = lockRoom(user.room.id);
         int newValue = Math.max(0, room.poolValue + delta);
         room.poolValue = newValue;
-        entityManager.merge(room);
 
         ObjectNode content = objectMapper.createObjectNode();
         content.put("action", "pool_delta");
         content.put("value", newValue);
         content.put("delta", delta);
-        ChatEntry entry = persistSystemEntry(user, content);
+        ChatEntry entry = persistSystemEntry(user, room, content);
 
         return new PoolResult(newValue, delta, user.nickname, entry.timestamp.toString());
     }
 
     @Transactional
     public PoolResult poolSet(RoomUser user, int value) {
-        Room room = user.room;
+        Room room = lockRoom(user.room.id);
         int clamped = Math.max(0, value);
         int delta = clamped - room.poolValue;
         room.poolValue = clamped;
-        entityManager.merge(room);
 
         ObjectNode content = objectMapper.createObjectNode();
         content.put("action", "pool_set");
         content.put("value", clamped);
         content.put("delta", delta);
-        ChatEntry entry = persistSystemEntry(user, content);
+        ChatEntry entry = persistSystemEntry(user, room, content);
 
         return new PoolResult(clamped, delta, user.nickname, entry.timestamp.toString());
     }
 
     @Transactional
     public ReshuffleResult reshuffleDeck(RoomUser user) {
-        if (!user.nickname.equals(user.room.adminNickname)) {
+        Room room = lockRoom(user.room.id);
+        if (!user.nickname.equals(room.adminNickname)) {
             return null;
         }
 
-        Room room = user.room;
         List<CardInfo> deck = gameService.buildSpanishDeck();
         room.deckState = gameService.deckToJson(deck);
-        entityManager.merge(room);
 
         ObjectNode content = objectMapper.createObjectNode();
         content.put("action", "reshuffle");
         content.put("by", user.nickname);
-        ChatEntry entry = persistSystemEntry(user, content);
+        ChatEntry entry = persistSystemEntry(user, room, content);
 
         return new ReshuffleResult(user.nickname, deck.size(), entry.timestamp.toString());
     }
 
     @Transactional
     public ToggleCardsResult toggleCards(RoomUser user) {
-        if (!user.nickname.equals(user.room.adminNickname)) {
+        Room room = lockRoom(user.room.id);
+        if (!user.nickname.equals(room.adminNickname)) {
             return null;
         }
-        Room room = user.room;
+
         room.cardsEnabled = !room.cardsEnabled;
-        entityManager.merge(room);
 
         ObjectNode content = objectMapper.createObjectNode();
         content.put("action", "toggle_cards");
         content.put("enabled", room.cardsEnabled);
-        ChatEntry entry = persistSystemEntry(user, content);
+        ChatEntry entry = persistSystemEntry(user, room, content);
 
         return new ToggleCardsResult(room.cardsEnabled, user.nickname, entry.timestamp.toString());
     }
@@ -396,14 +395,15 @@ public class RoomService {
 
     @Transactional
     public boolean kickUser(RoomUser admin, String targetNickname) {
-        if (!admin.nickname.equals(admin.room.adminNickname)) {
+        Room room = lockRoom(admin.room.id);
+        if (!admin.nickname.equals(room.adminNickname)) {
             return false;
         }
         if (targetNickname.equals(admin.nickname)) {
             return false;
         }
 
-        Optional<RoomUser> target = findConnectedUserByNickname(admin.room, targetNickname);
+        Optional<RoomUser> target = findConnectedUserByNickname(room, targetNickname);
         if (target.isEmpty()) {
             return false;
         }
@@ -414,13 +414,14 @@ public class RoomService {
 
     @Transactional
     public Optional<String> transferAdminIfNeeded(Room room) {
-        if (isUserConnected(room, room.adminNickname)) {
+        Room lockedRoom = lockRoom(room.id);
+        if (isUserConnected(lockedRoom, lockedRoom.adminNickname)) {
             return Optional.empty();
         }
 
         // Keep the current admin during the reconnect grace period. This avoids
         // losing admin on a transient disconnect such as an F5 refresh.
-        RoomUser currentAdmin = findUserByNickname(room, room.adminNickname).orElse(null);
+        RoomUser currentAdmin = findUserByNickname(lockedRoom, lockedRoom.adminNickname).orElse(null);
         if (currentAdmin != null
                 && currentAdmin.lastSeenAt != null
                 && currentAdmin.lastSeenAt.isAfter(
@@ -430,13 +431,12 @@ public class RoomService {
 
         List<RoomUser> connectedUsers = entityManager
             .createQuery("FROM RoomUser WHERE room = :room AND connected = true ORDER BY joinedAt ASC", RoomUser.class)
-            .setParameter("room", room)
+            .setParameter("room", lockedRoom)
             .getResultList();
 
         if (!connectedUsers.isEmpty()) {
             String newAdmin = connectedUsers.getFirst().nickname;
-            room.adminNickname = newAdmin;
-            entityManager.merge(room);
+            lockedRoom.adminNickname = newAdmin;
             return Optional.of(newAdmin);
         }
 
@@ -529,15 +529,31 @@ public class RoomService {
             .getResultList();
     }
 
-    private ChatEntry persistSystemEntry(RoomUser user, ObjectNode content) {
+    private ChatEntry persistSystemEntry(RoomUser user, Room room, ObjectNode content) {
         ChatEntry entry = new ChatEntry();
-        entry.room = user.room;
+        entry.room = room;
         entry.type = EntryType.SYSTEM;
         entry.nickname = user.nickname;
         entry.content = content.toString();
         entry.timestamp = Instant.now();
         entityManager.persist(entry);
         return entry;
+    }
+
+    /**
+     * Bloquea la fila de la sala dentro de la transacción actual.
+     *
+     * <p>Se usa para serializar operaciones read-modify-write sobre
+     * {@code deckState}, {@code poolValue}, {@code cardsEnabled} y
+     * {@code adminNickname}. El bloqueo está en base de datos, por lo que
+     * funciona también con varias instancias del backend.</p>
+     */
+    private Room lockRoom(Long roomId) {
+        Room room = entityManager.find(Room.class, roomId, LockModeType.PESSIMISTIC_WRITE);
+        if (room == null) {
+            throw new IllegalStateException("Room not found: " + roomId);
+        }
+        return room;
     }
 
     private String toJson(Object value, String fallback) {
