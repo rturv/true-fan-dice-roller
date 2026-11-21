@@ -28,7 +28,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required (min 32 chars)}
       - JAVA_OPTS_APPEND=-Xmx512m -Xms256m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
       interval: 15s
       timeout: 5s
       retries: 5

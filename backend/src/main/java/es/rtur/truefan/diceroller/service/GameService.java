@@ -1,5 +1,6 @@
 package es.rtur.truefan.diceroller.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.runtime.annotations.RegisterForReflection;
@@ -9,59 +10,72 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class GameService {
+
+    private static final Logger LOG = Logger.getLogger(GameService.class);
 
     private static final int DICE_MIN = 1;
     private static final int DICE_MAX = 20;
     private static final int MOD_MIN = -99;
     private static final int MOD_MAX = 99;
+    private static final int DECK_SIZE = 50;
+
+    private static final String[][] SUITS = {
+        {"oros", "Oros", "◎"},
+        {"copas", "Copas", "◠"},
+        {"espadas", "Espadas", "✦"},
+        {"bastos", "Bastos", "✣"}
+    };
+
+    private static final TypeReference<List<CardInfo>> CARD_LIST = new TypeReference<>() {};
 
     private final SecureRandom secureRandom = new SecureRandom();
+    private final ObjectMapper objectMapper;
 
     @Inject
-    ObjectMapper objectMapper;
-
-    @RegisterForReflection
-    public static class DiceResult {
-        public int count;
-        public int initialCount;
-        public List<Integer> values;
-        public int diceTotal;
-        public int modifier;
-        public int total;
-        public int explosions;
-
-        public DiceResult() {}
+    public GameService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
 
     @RegisterForReflection
-    public static class CardInfo {
-        public String kind;
-        public String suit;
-        public String suitName;
-        public int rank;
-        public String label;
-        public String glyph;
-        public String shortName;
+    public record DiceResult(
+            int count,
+            int initialCount,
+            List<Integer> values,
+            int diceTotal,
+            int modifier,
+            int total,
+            int explosions) {
     }
 
     @RegisterForReflection
-    public static class DrawResult {
-        public CardInfo card;
-        public int remaining;
-        public boolean autoReshuffled;
-        /** {@code joker} or {@code empty} when the deck was automatically reshuffled. */
-        public String reshuffleReason;
+    public record CardInfo(
+            String kind,
+            String suit,
+            String suitName,
+            int rank,
+            String label,
+            String glyph,
+            String shortName) {
+    }
+
+    @RegisterForReflection
+    public record DrawResult(
+            CardInfo card,
+            int remaining,
+            boolean autoReshuffled,
+            String reshuffleReason) {
     }
 
     public DiceResult rollDice(int count, int modifier) {
-        count = Math.max(DICE_MIN, Math.min(DICE_MAX, count));
-        modifier = Math.max(MOD_MIN, Math.min(MOD_MAX, modifier));
+        int safeCount = Math.clamp(count, DICE_MIN, DICE_MAX);
+        int safeModifier = Math.clamp(modifier, MOD_MIN, MOD_MAX);
 
-        List<Integer> initial = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
+        List<Integer> initial = new ArrayList<>(safeCount);
+        for (int i = 0; i < safeCount; i++) {
             initial.add(rollDie());
         }
 
@@ -70,25 +84,21 @@ public class GameService {
         int i = 0;
         while (i < allValues.size()) {
             if (allValues.get(i) == 6) {
-                int extra = rollDie();
-                allValues.add(extra);
+                allValues.add(rollDie());
                 explosionCount++;
             }
             i++;
         }
 
         int diceTotal = allValues.stream().mapToInt(Integer::intValue).sum();
-        int total = diceTotal + modifier;
-
-        DiceResult result = new DiceResult();
-        result.count = allValues.size();
-        result.initialCount = initial.size();
-        result.values = allValues;
-        result.diceTotal = diceTotal;
-        result.modifier = modifier;
-        result.total = total;
-        result.explosions = explosionCount;
-        return result;
+        return new DiceResult(
+                allValues.size(),
+                initial.size(),
+                List.copyOf(allValues),
+                diceTotal,
+                safeModifier,
+                diceTotal + safeModifier,
+                explosionCount);
     }
 
     private int rollDie() {
@@ -96,41 +106,22 @@ public class GameService {
     }
 
     public List<CardInfo> buildSpanishDeck() {
-        List<CardInfo> deck = new ArrayList<>();
-        String[][] suits = {
-            {"oros", "Oros", "◎"},
-            {"copas", "Copas", "◠"},
-            {"espadas", "Espadas", "✦"},
-            {"bastos", "Bastos", "✣"}
-        };
-
-        for (String[] suit : suits) {
+        List<CardInfo> deck = new ArrayList<>(DECK_SIZE);
+        for (String[] suit : SUITS) {
             for (int rank = 1; rank <= 12; rank++) {
-                CardInfo card = new CardInfo();
-                card.kind = "card";
-                card.suit = suit[0];
-                card.suitName = suit[1];
-                card.glyph = suit[2];
-                card.rank = rank;
-                card.label = rank + " de " + suit[1];
-                card.shortName = suit[0].substring(0, 2).toUpperCase();
-                deck.add(card);
+                deck.add(new CardInfo(
+                        "card",
+                        suit[0],
+                        suit[1],
+                        rank,
+                        rank + " de " + suit[1],
+                        suit[2],
+                        suit[0].substring(0, 2).toUpperCase()));
             }
         }
 
-        CardInfo joker1 = new CardInfo();
-        joker1.kind = "joker";
-        joker1.label = "Comodín Rojo";
-        joker1.glyph = "★";
-        joker1.shortName = "Jk";
-        deck.add(joker1);
-
-        CardInfo joker2 = new CardInfo();
-        joker2.kind = "joker";
-        joker2.label = "Comodín Negro";
-        joker2.glyph = "✶";
-        joker2.shortName = "Jk";
-        deck.add(joker2);
+        deck.add(new CardInfo("joker", null, null, 0, "Comodín Rojo", "★", "Jk"));
+        deck.add(new CardInfo("joker", null, null, 0, "Comodín Negro", "✶", "Jk"));
 
         shuffleDeck(deck);
         return deck;
@@ -154,8 +145,8 @@ public class GameService {
             deck.addAll(buildSpanishDeck());
         }
 
-        CardInfo drawn = deck.remove(deck.size() - 1);
-        boolean byJoker = "joker".equals(drawn.kind);
+        CardInfo drawn = deck.removeLast();
+        boolean byJoker = "joker".equals(drawn.kind());
         boolean deckEmpty = deck.isEmpty();
         boolean autoReshuffle = byJoker || deckEmpty;
 
@@ -164,27 +155,30 @@ public class GameService {
             deck.addAll(buildSpanishDeck());
         }
 
-        DrawResult result = new DrawResult();
-        result.card = drawn;
-        result.remaining = deck.size();
-        result.autoReshuffled = autoReshuffle;
-        result.reshuffleReason = byJoker ? "joker" : deckEmpty ? "empty" : null;
-        return result;
+        return new DrawResult(
+                drawn,
+                deck.size(),
+                autoReshuffle,
+                byJoker ? "joker" : deckEmpty ? "empty" : null);
     }
 
     public String deckToJson(List<CardInfo> deck) {
         try {
             return objectMapper.writeValueAsString(deck);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
+            LOG.error("No se pudo serializar la baraja", e);
             return "[]";
         }
     }
 
     public List<CardInfo> jsonToDeck(String json) {
+        if (json == null || json.isBlank()) {
+            return new ArrayList<>();
+        }
         try {
-            if (json == null || json.isBlank()) return new ArrayList<>();
-            return objectMapper.readValue(json, new TypeReference<List<CardInfo>>() {});
-        } catch (Exception e) {
+            return objectMapper.readValue(json, CARD_LIST);
+        } catch (JsonProcessingException e) {
+            LOG.error("No se pudo deserializar la baraja persistida", e);
             return new ArrayList<>();
         }
     }

@@ -19,8 +19,12 @@ public class MyReadinessCheck implements HealthCheck {
 
     private static final int VALIDATION_TIMEOUT_SECONDS = 3;
 
+    private final DataSource dataSource;
+
     @Inject
-    DataSource dataSource;
+    public MyReadinessCheck(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
 
     @Override
     public HealthCheckResponse call() {

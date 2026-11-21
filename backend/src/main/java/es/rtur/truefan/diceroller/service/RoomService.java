@@ -1,6 +1,8 @@
 package es.rtur.truefan.diceroller.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import es.rtur.truefan.diceroller.entity.ChatEntry;
 import es.rtur.truefan.diceroller.entity.ChatEntry.EntryType;
 import es.rtur.truefan.diceroller.entity.Room;
@@ -16,12 +18,14 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class RoomService {
+
+    private static final Logger LOG = Logger.getLogger(RoomService.class);
 
     private static final int ROOM_CODE_LENGTH = 7;
     private static final int MAX_USERS_PER_ROOM = 20;
@@ -31,18 +35,22 @@ public class RoomService {
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     private final SecureRandom secureRandom = new SecureRandom();
+    private final EntityManager entityManager;
+    private final GameService gameService;
+    private final ObjectMapper objectMapper;
+    private final JwtService jwtService;
 
     @Inject
-    EntityManager entityManager;
-
-    @Inject
-    GameService gameService;
-
-    @Inject
-    ObjectMapper objectMapper;
-
-    @Inject
-    JwtService jwtService;
+    public RoomService(
+            EntityManager entityManager,
+            GameService gameService,
+            ObjectMapper objectMapper,
+            JwtService jwtService) {
+        this.entityManager = entityManager;
+        this.gameService = gameService;
+        this.objectMapper = objectMapper;
+        this.jwtService = jwtService;
+    }
 
     @Transactional
     public Room createRoom(String adminNickname) {
@@ -74,27 +82,23 @@ public class RoomService {
     @Transactional
     public JoinResult createAndJoinRoom(String nickname) {
         Room room = createRoom(nickname);
-        RoomUser user = entityManager
-            .createQuery("FROM RoomUser WHERE room = :room AND nickname = :nickname", RoomUser.class)
-            .setParameter("room", room)
-            .setParameter("nickname", nickname)
-            .getResultStream().findFirst().orElse(null);
+        RoomUser user = findUserByNickname(room, nickname).orElse(null);
 
         List<ChatEntry> history = getRecentHistory(room);
         List<String> users = getConnectedNicknames(room);
         List<CardInfo> deck = gameService.jsonToDeck(room.deckState);
 
-        JoinResult result = new JoinResult();
-        result.success = true;
-        result.room = room;
-        result.user = user;
-        result.isAdmin = true;
-        result.history = history;
-        result.users = users;
-        result.deckRemaining = deck.size();
-        result.poolValue = room.poolValue;
-        result.cardsEnabled = room.cardsEnabled;
-        return result;
+        return new JoinResult(
+                true,
+                null,
+                room,
+                user,
+                true,
+                history,
+                users,
+                deck.size(),
+                room.poolValue,
+                room.cardsEnabled);
     }
 
     @Transactional
@@ -124,20 +128,19 @@ public class RoomService {
 
         List<ChatEntry> history = getRecentHistory(room);
         List<String> users = getConnectedNicknames(room);
-        String deckState = room.deckState;
-        List<CardInfo> deck = gameService.jsonToDeck(deckState);
+        List<CardInfo> deck = gameService.jsonToDeck(room.deckState);
 
-        JoinResult result = new JoinResult();
-        result.success = true;
-        result.room = room;
-        result.user = user;
-        result.isAdmin = nickname.equals(room.adminNickname);
-        result.history = history;
-        result.users = users;
-        result.deckRemaining = deck.size();
-        result.poolValue = room.poolValue;
-        result.cardsEnabled = room.cardsEnabled;
-        return result;
+        return new JoinResult(
+                true,
+                null,
+                room,
+                user,
+                nickname.equals(room.adminNickname),
+                history,
+                users,
+                deck.size(),
+                room.poolValue,
+                room.cardsEnabled);
     }
 
     @Transactional
@@ -163,20 +166,19 @@ public class RoomService {
 
         List<ChatEntry> history = getRecentHistory(room);
         List<String> users = getConnectedNicknames(room);
-        String deckState = room.deckState;
-        List<CardInfo> deck = gameService.jsonToDeck(deckState);
+        List<CardInfo> deck = gameService.jsonToDeck(room.deckState);
 
-        ReconnectResult result = new ReconnectResult();
-        result.success = true;
-        result.room = room;
-        result.user = user;
-        result.isAdmin = nickname.equals(room.adminNickname);
-        result.history = history;
-        result.users = users;
-        result.deckRemaining = deck.size();
-        result.poolValue = room.poolValue;
-        result.cardsEnabled = room.cardsEnabled;
-        return result;
+        return new ReconnectResult(
+                true,
+                null,
+                room,
+                user,
+                nickname.equals(room.adminNickname),
+                history,
+                users,
+                deck.size(),
+                room.poolValue,
+                room.cardsEnabled);
     }
 
     @Transactional
@@ -264,13 +266,7 @@ public class RoomService {
     @Transactional
     public DiceRollResult performDiceRoll(RoomUser user, int count, int modifier) {
         DiceResult diceResult = gameService.rollDice(count, modifier);
-
-        String content;
-        try {
-            content = objectMapper.writeValueAsString(diceResult);
-        } catch (Exception e) {
-            content = "{}";
-        }
+        String content = toJson(diceResult, "{}");
 
         ChatEntry entry = new ChatEntry();
         entry.room = user.room;
@@ -280,11 +276,7 @@ public class RoomService {
         entry.timestamp = Instant.now();
         entityManager.persist(entry);
 
-        DiceRollResult result = new DiceRollResult();
-        result.nickname = user.nickname;
-        result.result = diceResult;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new DiceRollResult(user.nickname, diceResult, entry.timestamp.toString());
     }
 
     @Transactional
@@ -295,12 +287,7 @@ public class RoomService {
         room.deckState = gameService.deckToJson(deck);
         entityManager.merge(room);
 
-        String content;
-        try {
-            content = objectMapper.writeValueAsString(drawResult);
-        } catch (Exception e) {
-            content = "{}";
-        }
+        String content = toJson(drawResult, "{}");
 
         ChatEntry entry = new ChatEntry();
         entry.room = room;
@@ -310,14 +297,13 @@ public class RoomService {
         entry.timestamp = Instant.now();
         entityManager.persist(entry);
 
-        CardDrawResult result = new CardDrawResult();
-        result.nickname = user.nickname;
-        result.card = drawResult.card;
-        result.remaining = drawResult.remaining;
-        result.autoReshuffled = drawResult.autoReshuffled;
-        result.reshuffleReason = drawResult.reshuffleReason;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new CardDrawResult(
+                user.nickname,
+                drawResult.card(),
+                drawResult.remaining(),
+                drawResult.autoReshuffled(),
+                drawResult.reshuffleReason(),
+                entry.timestamp.toString());
     }
 
     @Transactional
@@ -330,36 +316,23 @@ public class RoomService {
         entry.timestamp = Instant.now();
         entityManager.persist(entry);
 
-        TextMessageResult result = new TextMessageResult();
-        result.nickname = user.nickname;
-        result.text = text;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new TextMessageResult(user.nickname, text, entry.timestamp.toString());
     }
 
     @Transactional
     public PoolResult poolDelta(RoomUser user, int delta) {
         Room room = user.room;
-        int newValue = room.poolValue + delta;
-        if (newValue < 0) newValue = 0;
+        int newValue = Math.max(0, room.poolValue + delta);
         room.poolValue = newValue;
         entityManager.merge(room);
 
-        String content = "{\"action\":\"pool_delta\",\"value\":" + newValue + ",\"delta\":" + delta + "}";
-        ChatEntry entry = new ChatEntry();
-        entry.room = room;
-        entry.type = EntryType.SYSTEM;
-        entry.nickname = user.nickname;
-        entry.content = content;
-        entry.timestamp = Instant.now();
-        entityManager.persist(entry);
+        ObjectNode content = objectMapper.createObjectNode();
+        content.put("action", "pool_delta");
+        content.put("value", newValue);
+        content.put("delta", delta);
+        ChatEntry entry = persistSystemEntry(user, content);
 
-        PoolResult result = new PoolResult();
-        result.value = newValue;
-        result.delta = delta;
-        result.byNickname = user.nickname;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new PoolResult(newValue, delta, user.nickname, entry.timestamp.toString());
     }
 
     @Transactional
@@ -370,21 +343,13 @@ public class RoomService {
         room.poolValue = clamped;
         entityManager.merge(room);
 
-        String content = "{\"action\":\"pool_set\",\"value\":" + clamped + ",\"delta\":" + delta + "}";
-        ChatEntry entry = new ChatEntry();
-        entry.room = room;
-        entry.type = EntryType.SYSTEM;
-        entry.nickname = user.nickname;
-        entry.content = content;
-        entry.timestamp = Instant.now();
-        entityManager.persist(entry);
+        ObjectNode content = objectMapper.createObjectNode();
+        content.put("action", "pool_set");
+        content.put("value", clamped);
+        content.put("delta", delta);
+        ChatEntry entry = persistSystemEntry(user, content);
 
-        PoolResult result = new PoolResult();
-        result.value = clamped;
-        result.delta = delta;
-        result.byNickname = user.nickname;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new PoolResult(clamped, delta, user.nickname, entry.timestamp.toString());
     }
 
     @Transactional
@@ -398,20 +363,12 @@ public class RoomService {
         room.deckState = gameService.deckToJson(deck);
         entityManager.merge(room);
 
-        String content = "{\"action\":\"reshuffle\",\"by\":\"" + user.nickname + "\"}";
-        ChatEntry entry = new ChatEntry();
-        entry.room = room;
-        entry.type = EntryType.SYSTEM;
-        entry.nickname = user.nickname;
-        entry.content = content;
-        entry.timestamp = Instant.now();
-        entityManager.persist(entry);
+        ObjectNode content = objectMapper.createObjectNode();
+        content.put("action", "reshuffle");
+        content.put("by", user.nickname);
+        ChatEntry entry = persistSystemEntry(user, content);
 
-        ReshuffleResult result = new ReshuffleResult();
-        result.byNickname = user.nickname;
-        result.remaining = 50;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new ReshuffleResult(user.nickname, deck.size(), entry.timestamp.toString());
     }
 
     @Transactional
@@ -423,20 +380,12 @@ public class RoomService {
         room.cardsEnabled = !room.cardsEnabled;
         entityManager.merge(room);
 
-        String content = "{\"action\":\"toggle_cards\",\"enabled\":" + room.cardsEnabled + "}";
-        ChatEntry entry = new ChatEntry();
-        entry.room = room;
-        entry.type = EntryType.SYSTEM;
-        entry.nickname = user.nickname;
-        entry.content = content;
-        entry.timestamp = Instant.now();
-        entityManager.persist(entry);
+        ObjectNode content = objectMapper.createObjectNode();
+        content.put("action", "toggle_cards");
+        content.put("enabled", room.cardsEnabled);
+        ChatEntry entry = persistSystemEntry(user, content);
 
-        ToggleCardsResult result = new ToggleCardsResult();
-        result.enabled = room.cardsEnabled;
-        result.byNickname = user.nickname;
-        result.timestamp = entry.timestamp.toString();
-        return result;
+        return new ToggleCardsResult(room.cardsEnabled, user.nickname, entry.timestamp.toString());
     }
 
     @Transactional
@@ -485,7 +434,7 @@ public class RoomService {
             .getResultList();
 
         if (!connectedUsers.isEmpty()) {
-            String newAdmin = connectedUsers.get(0).nickname;
+            String newAdmin = connectedUsers.getFirst().nickname;
             room.adminNickname = newAdmin;
             entityManager.merge(room);
             return Optional.of(newAdmin);
@@ -497,17 +446,19 @@ public class RoomService {
     public Room findRoomByCode(String code) {
         List<Room> results = entityManager
             .createQuery("FROM Room WHERE code = :code", Room.class)
-            .setParameter("code", code.toUpperCase())
+            .setParameter("code", code.toUpperCase(Locale.ROOT))
+            .setMaxResults(1)
             .getResultList();
-        return results.isEmpty() ? null : results.get(0);
+        return results.isEmpty() ? null : results.getFirst();
     }
 
     public Optional<RoomUser> findUserBySessionToken(String sessionToken) {
         List<RoomUser> results = entityManager
             .createQuery("FROM RoomUser WHERE sessionToken = :token", RoomUser.class)
             .setParameter("token", sessionToken)
+            .setMaxResults(1)
             .getResultList();
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.getFirst());
     }
 
     public Optional<RoomUser> findUserByToken(Room room, String sessionToken) {
@@ -515,8 +466,9 @@ public class RoomService {
             .createQuery("FROM RoomUser WHERE room = :room AND sessionToken = :token", RoomUser.class)
             .setParameter("room", room)
             .setParameter("token", sessionToken)
+            .setMaxResults(1)
             .getResultList();
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.getFirst());
     }
 
     public Optional<RoomUser> findUserByNickname(Room room, String nickname) {
@@ -524,8 +476,9 @@ public class RoomService {
             .createQuery("FROM RoomUser WHERE room = :room AND nickname = :nickname", RoomUser.class)
             .setParameter("room", room)
             .setParameter("nickname", nickname)
+            .setMaxResults(1)
             .getResultList();
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.getFirst());
     }
 
     public Optional<RoomUser> findConnectedUserByNickname(Room room, String nickname) {
@@ -533,8 +486,9 @@ public class RoomService {
             .createQuery("FROM RoomUser WHERE room = :room AND nickname = :nickname AND connected = true", RoomUser.class)
             .setParameter("room", room)
             .setParameter("nickname", nickname)
+            .setMaxResults(1)
             .getResultList();
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.getFirst());
     }
 
     public boolean isNicknameTaken(Room room, String nickname) {
@@ -575,99 +529,97 @@ public class RoomService {
             .getResultList();
     }
 
+    private ChatEntry persistSystemEntry(RoomUser user, ObjectNode content) {
+        ChatEntry entry = new ChatEntry();
+        entry.room = user.room;
+        entry.type = EntryType.SYSTEM;
+        entry.nickname = user.nickname;
+        entry.content = content.toString();
+        entry.timestamp = Instant.now();
+        entityManager.persist(entry);
+        return entry;
+    }
+
+    private String toJson(Object value, String fallback) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            LOG.error("No se pudo serializar el contenido del evento", e);
+            return fallback;
+        }
+    }
+
     private String generateUniqueCode() {
         StringBuilder code;
         int attempts = 0;
         do {
-            code = new StringBuilder();
+            code = new StringBuilder(ROOM_CODE_LENGTH);
             for (int i = 0; i < ROOM_CODE_LENGTH; i++) {
                 code.append(CODE_CHARS.charAt(secureRandom.nextInt(CODE_CHARS.length())));
             }
             attempts++;
             if (attempts > 100) {
-                throw new RuntimeException("Unable to generate unique room code");
+                throw new IllegalStateException("Unable to generate unique room code");
             }
         } while (findRoomByCode(code.toString()) != null);
         return code.toString();
     }
 
-    public static class JoinResult {
-        public boolean success;
-        public String errorMessage;
-        public Room room;
-        public RoomUser user;
-        public boolean isAdmin;
-        public List<ChatEntry> history;
-        public List<String> users;
-        public int deckRemaining;
-        public int poolValue;
-        public boolean cardsEnabled;
+    public record JoinResult(
+            boolean success,
+            String errorMessage,
+            Room room,
+            RoomUser user,
+            boolean isAdmin,
+            List<ChatEntry> history,
+            List<String> users,
+            int deckRemaining,
+            int poolValue,
+            boolean cardsEnabled) {
 
         static JoinResult error(String msg) {
-            JoinResult r = new JoinResult();
-            r.success = false;
-            r.errorMessage = msg;
-            return r;
+            return new JoinResult(false, msg, null, null, false, List.of(), List.of(), 0, 0, false);
         }
     }
 
-    public static class ReconnectResult {
-        public boolean success;
-        public String errorMessage;
-        public Room room;
-        public RoomUser user;
-        public boolean isAdmin;
-        public List<ChatEntry> history;
-        public List<String> users;
-        public int deckRemaining;
-        public int poolValue;
-        public boolean cardsEnabled;
+    public record ReconnectResult(
+            boolean success,
+            String errorMessage,
+            Room room,
+            RoomUser user,
+            boolean isAdmin,
+            List<ChatEntry> history,
+            List<String> users,
+            int deckRemaining,
+            int poolValue,
+            boolean cardsEnabled) {
 
         static ReconnectResult error(String msg) {
-            ReconnectResult r = new ReconnectResult();
-            r.success = false;
-            r.errorMessage = msg;
-            return r;
+            return new ReconnectResult(false, msg, null, null, false, List.of(), List.of(), 0, 0, false);
         }
     }
 
-    public static class DiceRollResult {
-        public String nickname;
-        public DiceResult result;
-        public String timestamp;
+    public record DiceRollResult(String nickname, DiceResult result, String timestamp) {
     }
 
-    public static class CardDrawResult {
-        public String nickname;
-        public CardInfo card;
-        public int remaining;
-        public boolean autoReshuffled;
-        public String reshuffleReason;
-        public String timestamp;
+    public record CardDrawResult(
+            String nickname,
+            CardInfo card,
+            int remaining,
+            boolean autoReshuffled,
+            String reshuffleReason,
+            String timestamp) {
     }
 
-    public static class TextMessageResult {
-        public String nickname;
-        public String text;
-        public String timestamp;
+    public record TextMessageResult(String nickname, String text, String timestamp) {
     }
 
-    public static class ReshuffleResult {
-        public String byNickname;
-        public int remaining;
-        public String timestamp;
+    public record ReshuffleResult(String byNickname, int remaining, String timestamp) {
     }
 
-    public static class PoolResult {
-        public int value;
-        public int delta;
-        public String byNickname;
-        public String timestamp;
+    public record PoolResult(int value, int delta, String byNickname, String timestamp) {
     }
 
-    public static class ToggleCardsResult {
-        public boolean enabled;
-        public String byNickname;
-        public String timestamp;
+    public record ToggleCardsResult(boolean enabled, String byNickname, String timestamp) {
     }
 }

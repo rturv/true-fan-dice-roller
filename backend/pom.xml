@@ -8,14 +8,14 @@
 
     <properties>
         <compiler-plugin.version>3.16.0</compiler-plugin.version>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.40.1.1</quarkus.platform.version>
+        <quarkus.platform.version>3.40.1.2</quarkus.platform.version>
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <surefire-plugin.version>3.6.1</surefire-plugin.version>
         <toolchains-plugin.version>3.3.0</toolchains-plugin.version>
     </properties>
 
@@ -34,19 +34,7 @@
     <dependencies>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-websockets</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-hibernate-orm-panache</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-smallrye-jwt</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -55,10 +43,6 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-jwt-build</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-jdbc-h2</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -72,6 +56,10 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-container-image-docker</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-cyclonedx</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -84,11 +72,6 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.rest-assured</groupId>
-            <artifactId>rest-assured</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -155,20 +138,39 @@
                 <skipITs>false</skipITs>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
                 <!-- Quarkus 3.36+ exige GraalVM/Mandrel 25 para native.
-                     El bytecode de la app sigue siendo Java 21 (release 21). -->
-                <quarkus.native.builder-image>quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25</quarkus.native.builder-image>
+                     Se fija Mandrel 25.0.5.0 (OpenJDK 25.0.5) por tag y digest
+                     para que el build sea reproducible y no dependa de un tag flotante. -->
+                <quarkus.native.builder-image>quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:25.0.5.0-Final-java25@sha256:814579d0cad736f838e737e6a6ea32e26f613155616d04b1434b00ce1da2319d</quarkus.native.builder-image>
                 <!-- Al empaquetar nativo, la extensión container-image usa este Dockerfile -->
                 <quarkus.container-image.dockerfile>src/main/docker/Dockerfile.native</quarkus.container-image.dockerfile>
             </properties>
         </profile>
 
         <!--
-            Compila con el JDK 21 definido en ~/.m2/toolchains.xml,
+            H2 solo para desarrollo y tests. Se desactiva automáticamente
+            cuando se activa el perfil `native`, de modo que el binario
+            nativo de producción no incluya el driver H2 ni sus clases.
+        -->
+        <profile>
+            <id>dev-h2</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-jdbc-h2</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!--
+            Compila con el JDK 25 definido en ~/.m2/toolchains.xml,
             independientemente del JAVA_HOME con el que se ejecute Maven.
             Se activa automáticamente si existe el fichero de toolchains.
         -->
         <profile>
-            <id>toolchain-jdk21</id>
+            <id>toolchain-jdk25</id>
             <activation>
                 <file>
                     <exists>${user.home}/.m2/toolchains.xml</exists>
@@ -190,7 +192,7 @@
                         <configuration>
                             <toolchains>
                                 <jdk>
-                                    <version>21</version>
+                                    <version>25</version>
                                 </jdk>
                             </toolchains>
                         </configuration>
@@ -199,7 +201,7 @@
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
                             <jdkToolchain>
-                                <version>21</version>
+                                <version>25</version>
                             </jdkToolchain>
                         </configuration>
                     </plugin>
