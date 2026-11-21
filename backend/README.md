@@ -1,8 +1,22 @@
 # dice-roller-ws
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Backend WebSocket de True Fan Dice Roller.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+- **Java 25** (`maven.compiler.release=25`)
+- **Quarkus 3.40.1.2 LTS**
+- PostgreSQL en producción, H2 en desarrollo/test
+- Imagen nativa con Mandrel 25.0.5.0 (OpenJDK 25.0.5)
+
+## Requisitos
+
+- JDK 25
+- Maven 3.9+ (o el wrapper `mvnw`)
+- Docker/Podman para construir la imagen nativa
+
+> En WSL, si `./mvnw` falla validando el checksum de Maven, instala `unzip`
+> (`sudo apt install unzip`) o usa el `mvn` del sistema. El wrapper descarga
+> el `.tar.gz` cuando no encuentra `unzip`, pero el SHA-256 configurado es
+> el del `.zip`.
 
 ## Running the application in dev mode
 
@@ -40,54 +54,71 @@ The application, packaged as an _über-jar_, is now runnable using `java -jar ta
 You can create a native executable using:
 
 ```shell script
-./mvnw package -Dnative
+./mvnw package -Pnative
 ```
 
 Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
 
 ```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+./mvnw package -Pnative -Dquarkus.native.container-build=true
 ```
 
-You can then execute your native executable with: `./target/dice-roller-ws-1.0.0-SNAPSHOT-runner`
+El perfil `native` fija el builder
+`quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:25.0.5.0-Final-java25`
+por digest. También desactiva el perfil `dev-h2`, por lo que el binario de
+producción no incluye H2.
+
+You can then execute your native executable with: `./target/dice-roller-ws-1.1.0-runner`
+
+La imagen de runtime se construye con el Dockerfile nativo:
+
+```shell script
+docker build -f src/main/docker/Dockerfile.native -t dice-roller-ws:native .
+```
+
+El binario nativo genera además un SBOM en
+`target/dice-roller-ws-1.1.0-runner-cyclonedx.json` y embebe el SBOM en el
+propio ejecutable, de forma que `syft` puede extraerlo:
+
+```shell script
+syft scan target/dice-roller-ws-1.1.0-runner -o cyclonedx-json
+```
 
 If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
 
 ## Related Guides
 
-- REST ([guide](https://quarkus.io/guides/rest)): Build RESTful web services and APIs using Jakarta REST (formerly JAX-RS)
-- WebSockets ([guide](https://quarkus.io/guides/websockets)): WebSocket communication channel support
-- Hibernate ORM with Panache ([guide](https://quarkus.io/guides/hibernate-orm-panache)): Simplified JPA/Hibernate data access layer with active record and repository patterns
+- WebSockets Next ([guide](https://quarkus.io/guides/websockets-next)): WebSocket communication channel support
+- Hibernate ORM ([guide](https://quarkus.io/guides/hibernate-orm)): Persistencia JPA/Hibernate
 - SmallRye JWT ([guide](https://quarkus.io/guides/security-jwt)): Secure your applications with JSON Web Token
 - SmallRye Health ([guide](https://quarkus.io/guides/smallrye-health)): Monitor service health
 - SmallRye JWT Build ([guide](https://quarkus.io/guides/security-jwt-build)): Create JSON Web Token with SmallRye JWT Build API
+- CycloneDX ([guide](https://quarkus.io/guides/cyclonedx)): SBOM y análisis de vulnerabilidades
 
-## Provided Code
+## Estructura
 
-### Hibernate ORM
+- `service/GameService`: dados, baraja española y serialización de estado.
+- `service/RoomService`: salas, usuarios, historial, pool y cartas.
+- `service/JwtService`: emisión, validación y renovación de tokens de sesión.
+- `websocket/RoomWebSocket`: protocolo WebSocket en `/ws/room`.
+- `entity/`: entidades JPA (`Room`, `RoomUser`, `ChatEntry`).
+- `config/`: configuración tipada (`JwtConfig`, `CleanupConfig`).
 
-Create your first JPA entity
+## Concurrencia
 
-[Related guide section...](https://quarkus.io/guides/hibernate-orm)
+Las operaciones que modifican el estado de una sala (`draw_card`, `pool_delta`,
+`pool_set`, `reshuffle_deck`, `toggle_cards`, transferencia de admin y
+`kick_user`) bloquean la fila `Room` con `LockModeType.PESSIMISTIC_WRITE`.
+Así dos mensajes simultáneos de la misma sala no pueden pisarse: el segundo
+espera a que el primero haga commit y lee el estado actualizado. El bloqueo
+está en base de datos, por lo que también funciona con varias instancias del
+backend.
 
+## Configuración de producción
 
-[Related Hibernate with Panache section...](https://quarkus.io/guides/hibernate-orm-panache)
+- `DB_URL`, `DB_USER`, `DB_PASSWORD`: PostgreSQL.
+- `JWT_SECRET`: obligatorio en `%prod`; el arranque falla si no está definido.
+- `CORS_ORIGINS`: orígenes permitidos (por defecto `*`).
 
-
-### REST
-
-Easily start your REST Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
-
-### SmallRye Health
-
-Monitor your application's health using SmallRye Health
-
-[Related guide section...](https://quarkus.io/guides/smallrye-health)
-
-### WebSockets
-
-WebSocket communication channel starter code
-
-[Related guide section...](https://quarkus.io/guides/websockets)
+El perfil `%prod` mantiene `quarkus.hibernate-orm.schema-management.strategy=update`.
+Para producción se recomienda migrar a Flyway y usar `validate` o `none`.
