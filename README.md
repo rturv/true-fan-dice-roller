@@ -2,7 +2,7 @@
 
 Aplicación tipo chat para lanzar dados d6 (con explosión y modificador) y sacar cartas de una baraja española virtual, en tiempo real con amigos.
 
-**Stack**: Angular 21 (frontend) + Quarkus 3.40 LTS / Java 21 (backend) + WebSockets + JPA (H2 en desarrollo, PostgreSQL en producción).
+**Stack**: Angular 21 (frontend) + Quarkus 3.40 LTS / Java 25 (backend) + WebSockets Next + JPA (H2 en desarrollo, PostgreSQL en producción).
 
 ---
 

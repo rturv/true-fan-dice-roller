@@ -88,7 +88,7 @@ If you want to learn more about building native executables, please consult <htt
 
 ## Related Guides
 
-- WebSockets ([guide](https://quarkus.io/guides/websockets)): WebSocket communication channel support
+- WebSockets Next ([guide](https://quarkus.io/guides/websockets-next)): WebSocket communication channel support
 - Hibernate ORM ([guide](https://quarkus.io/guides/hibernate-orm)): Persistencia JPA/Hibernate
 - SmallRye JWT ([guide](https://quarkus.io/guides/security-jwt)): Secure your applications with JSON Web Token
 - SmallRye Health ([guide](https://quarkus.io/guides/smallrye-health)): Monitor service health

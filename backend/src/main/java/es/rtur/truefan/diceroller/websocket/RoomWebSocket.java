@@ -15,23 +15,22 @@ import es.rtur.truefan.diceroller.service.RoomService.JoinResult;
 import es.rtur.truefan.diceroller.service.RoomService.ReconnectResult;
 import es.rtur.truefan.diceroller.service.RoomService.ReshuffleResult;
 import es.rtur.truefan.diceroller.service.RoomService.TextMessageResult;
+import io.quarkus.websockets.next.OnClose;
+import io.quarkus.websockets.next.OnError;
+import io.quarkus.websockets.next.OnTextMessage;
+import io.quarkus.websockets.next.OpenConnections;
+import io.quarkus.websockets.next.WebSocket;
+import io.quarkus.websockets.next.WebSocketConnection;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.websocket.OnClose;
-import jakarta.websocket.OnError;
-import jakarta.websocket.OnMessage;
-import jakarta.websocket.OnOpen;
-import jakarta.websocket.Session;
-import jakarta.websocket.server.ServerEndpoint;
-import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import org.jboss.logging.Logger;
 
-@ServerEndpoint("/ws/room")
+@WebSocket(path = "/ws/room")
 @ApplicationScoped
 public class RoomWebSocket {
 
@@ -40,121 +39,123 @@ public class RoomWebSocket {
     private final ObjectMapper objectMapper;
     private final RoomService roomService;
     private final JwtService jwtService;
+    private final OpenConnections openConnections;
 
-    private final Map<String, Set<Session>> roomSessions = new ConcurrentHashMap<>();
-    private final Map<String, String> sessionIdToRoomCode = new ConcurrentHashMap<>();
-    private final Map<String, String> sessionIdToToken = new ConcurrentHashMap<>();
+    // roomCode -> connection ids, y mapas inversos para resolver la sesión.
+    private final Map<String, Set<String>> roomConnections = new ConcurrentHashMap<>();
+    private final Map<String, String> connectionIdToRoomCode = new ConcurrentHashMap<>();
+    private final Map<String, String> connectionIdToToken = new ConcurrentHashMap<>();
 
     @Inject
-    public RoomWebSocket(ObjectMapper objectMapper, RoomService roomService, JwtService jwtService) {
+    public RoomWebSocket(
+            ObjectMapper objectMapper,
+            RoomService roomService,
+            JwtService jwtService,
+            OpenConnections openConnections) {
         this.objectMapper = objectMapper;
         this.roomService = roomService;
         this.jwtService = jwtService;
-    }
-
-    @OnOpen
-    public void onOpen(Session session) {
+        this.openConnections = openConnections;
     }
 
     @OnClose
-    public void onClose(Session session) {
-        handleDisconnect(session);
+    public void onClose(WebSocketConnection connection) {
+        handleDisconnect(connection.id());
     }
 
     @OnError
-    public void onError(Session session, Throwable error) {
-        LOG.debugf(error, "WebSocket error en sesión %s", session.getId());
-        handleDisconnect(session);
+    public void onError(Throwable error) {
+        LOG.debug("Error en WebSocket", error);
     }
 
-    @OnMessage
-    public void onMessage(String message, Session session) {
+    @OnTextMessage
+    public void onMessage(String message, WebSocketConnection connection) {
         try {
             JsonNode msg = objectMapper.readTree(message);
             String type = msg.has("type") ? msg.get("type").asText() : "";
 
             switch (type) {
-                case "create_room" -> handleCreateRoom(session, msg);
-                case "join" -> handleJoin(session, msg);
-                case "reconnect" -> handleReconnect(session, msg);
-                case "roll_dice" -> handleRollDice(session, msg);
-                case "draw_card" -> handleDrawCard(session, msg);
-                case "send_message" -> handleSendMessage(session, msg);
-                case "toggle_cards" -> handleToggleCards(session, msg);
-                case "pool_delta" -> handlePoolDelta(session, msg);
-                case "pool_set" -> handlePoolSet(session, msg);
-                case "reshuffle_deck" -> handleReshuffleDeck(session, msg);
-                case "kick_user" -> handleKickUser(session, msg);
-                case "ping" -> handlePing(session);
+                case "create_room" -> handleCreateRoom(connection, msg);
+                case "join" -> handleJoin(connection, msg);
+                case "reconnect" -> handleReconnect(connection, msg);
+                case "roll_dice" -> handleRollDice(connection, msg);
+                case "draw_card" -> handleDrawCard(connection, msg);
+                case "send_message" -> handleSendMessage(connection, msg);
+                case "toggle_cards" -> handleToggleCards(connection, msg);
+                case "pool_delta" -> handlePoolDelta(connection, msg);
+                case "pool_set" -> handlePoolSet(connection, msg);
+                case "reshuffle_deck" -> handleReshuffleDeck(connection, msg);
+                case "kick_user" -> handleKickUser(connection, msg);
+                case "ping" -> handlePing(connection);
                 case "pong" -> { /* heartbeat response */ }
-                case "renew_token" -> handleRenewToken(session, msg);
-                default -> sendError(session, "Unknown message type: " + type);
+                case "renew_token" -> handleRenewToken(connection);
+                default -> sendError(connection, "Unknown message type: " + type);
             }
         } catch (Exception e) {
             LOG.debug("Mensaje WebSocket inválido", e);
-            sendError(session, "Invalid message format");
+            sendError(connection, "Invalid message format");
         }
     }
 
-    private void handleCreateRoom(Session session, JsonNode msg) {
+    private void handleCreateRoom(WebSocketConnection connection, JsonNode msg) {
         String nickname = msg.has("nickname") ? msg.get("nickname").asText() : "";
         if (nickname.isBlank()) {
-            sendError(session, "nickname is required");
+            sendError(connection, "nickname is required");
             return;
         }
 
         JoinResult result = roomService.createAndJoinRoom(nickname);
         if (!result.success()) {
-            sendError(session, result.errorMessage());
+            sendError(connection, result.errorMessage());
             return;
         }
 
-        registerSession(session, result.room().code, result.user().sessionToken);
-        sendMessage(session, buildJoinedResponse(result, nickname));
+        registerSession(connection, result.room().code, result.user().sessionToken);
+        sendMessage(connection, buildJoinedResponse(result, nickname));
     }
 
-    private void handleJoin(Session session, JsonNode msg) {
+    private void handleJoin(WebSocketConnection connection, JsonNode msg) {
         String roomCode = msg.has("roomCode") ? msg.get("roomCode").asText() : "";
         String nickname = msg.has("nickname") ? msg.get("nickname").asText() : "";
 
         if (roomCode.isBlank() || nickname.isBlank()) {
-            sendError(session, "roomCode and nickname are required");
+            sendError(connection, "roomCode and nickname are required");
             return;
         }
 
         JoinResult result = roomService.joinRoom(roomCode, nickname);
         if (!result.success()) {
-            sendError(session, result.errorMessage());
+            sendError(connection, result.errorMessage());
             return;
         }
 
-        registerSession(session, roomCode, result.user().sessionToken);
-        sendMessage(session, buildJoinedResponse(result, nickname));
+        registerSession(connection, roomCode, result.user().sessionToken);
+        sendMessage(connection, buildJoinedResponse(result, nickname));
 
-        broadcastToRoom(roomCode, createUserJoinedMsg(nickname), session);
+        broadcastToRoom(roomCode, createUserJoinedMsg(nickname), connection.id());
         broadcastUserList(roomCode);
     }
 
-    private void handleReconnect(Session session, JsonNode msg) {
+    private void handleReconnect(WebSocketConnection connection, JsonNode msg) {
         String roomCode = msg.has("roomCode") ? msg.get("roomCode").asText() : "";
         String nickname = msg.has("nickname") ? msg.get("nickname").asText() : "";
         String sessionToken = msg.has("sessionToken") ? msg.get("sessionToken").asText() : "";
 
         if (roomCode.isBlank() || nickname.isBlank() || sessionToken.isBlank()) {
-            sendError(session, "roomCode, nickname, and sessionToken are required");
+            sendError(connection, "roomCode, nickname, and sessionToken are required");
             return;
         }
 
         ReconnectResult result = roomService.reconnectToRoom(roomCode, nickname, sessionToken);
         if (!result.success()) {
-            sendError(session, result.errorMessage());
+            sendError(connection, result.errorMessage());
             return;
         }
 
-        registerSession(session, roomCode, sessionToken);
-        sendMessage(session, buildJoinedResponse(result, nickname));
+        registerSession(connection, roomCode, sessionToken);
+        sendMessage(connection, buildJoinedResponse(result, nickname));
 
-        broadcastToRoom(roomCode, createUserJoinedMsg(nickname), session);
+        broadcastToRoom(roomCode, createUserJoinedMsg(nickname), connection.id());
         broadcastUserList(roomCode);
     }
 
@@ -206,14 +207,14 @@ public class RoomWebSocket {
         return response.toString();
     }
 
-    private void handlePing(Session session) {
+    private void handlePing(WebSocketConnection connection) {
         ObjectNode pong = objectMapper.createObjectNode();
         pong.put("type", "pong");
-        sendMessage(session, pong.toString());
+        sendMessage(connection, pong.toString());
     }
 
-    private void handleRollDice(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handleRollDice(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
@@ -229,17 +230,17 @@ public class RoomWebSocket {
         response.put("timestamp", result.timestamp());
         response.set("result", objectMapper.valueToTree(result.result()));
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handleDrawCard(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handleDrawCard(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
 
         if (!user.room.cardsEnabled) {
-            sendError(session, "Cards are disabled");
+            sendError(connection, "Cards are disabled");
             return;
         }
 
@@ -256,11 +257,11 @@ public class RoomWebSocket {
         response.put("timestamp", result.timestamp());
         response.set("card", objectMapper.valueToTree(result.card()));
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handleSendMessage(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handleSendMessage(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
@@ -278,18 +279,18 @@ public class RoomWebSocket {
         response.put("text", result.text());
         response.put("timestamp", result.timestamp());
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handleToggleCards(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handleToggleCards(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
 
         RoomService.ToggleCardsResult result = roomService.toggleCards(user);
         if (result == null) {
-            sendError(session, "Only the admin can toggle cards");
+            sendError(connection, "Only the admin can toggle cards");
             return;
         }
 
@@ -299,43 +300,42 @@ public class RoomWebSocket {
         response.put("byNickname", result.byNickname());
         response.put("timestamp", result.timestamp());
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handleRenewToken(Session session, JsonNode msg) {
-        String oldToken = sessionIdToToken.get(session.getId());
+    private void handleRenewToken(WebSocketConnection connection) {
+        String connectionId = connection.id();
+        String oldToken = connectionIdToToken.get(connectionId);
         if (oldToken == null) {
-            sendError(session, "No token to renew");
+            sendError(connection, "No token to renew");
             return;
         }
         String newToken = jwtService.renewToken(oldToken);
         if (newToken == null || jwtService.validate(newToken) == null) {
-            sendError(session, "Cannot renew token");
+            sendError(connection, "Cannot renew token");
             return;
         }
 
-        // Update stored token in DB
         RoomUser user = roomService.findUserBySessionToken(oldToken).orElse(null);
         if (user != null) {
             roomService.updateSessionToken(user, newToken);
         }
 
-        // Re-register session with new token
-        String roomCode = sessionIdToRoomCode.get(session.getId());
+        String roomCode = connectionIdToRoomCode.get(connectionId);
         if (roomCode == null) {
-            sendError(session, "Session is not registered in a room");
+            sendError(connection, "Session is not registered in a room");
             return;
         }
-        registerSession(session, roomCode, newToken);
+        registerSession(connection, roomCode, newToken);
 
         ObjectNode response = objectMapper.createObjectNode();
         response.put("type", "token_renewed");
         response.put("sessionToken", newToken);
-        sendMessage(session, response.toString());
+        sendMessage(connection, response.toString());
     }
 
-    private void handlePoolDelta(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handlePoolDelta(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
@@ -354,17 +354,17 @@ public class RoomWebSocket {
         response.put("byNickname", result.byNickname());
         response.put("timestamp", result.timestamp());
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handlePoolSet(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handlePoolSet(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
 
         if (!user.nickname.equals(user.room.adminNickname)) {
-            sendError(session, "Only the admin can set the pool value");
+            sendError(connection, "Only the admin can set the pool value");
             return;
         }
 
@@ -382,17 +382,17 @@ public class RoomWebSocket {
         response.put("byNickname", result.byNickname());
         response.put("timestamp", result.timestamp());
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handleReshuffleDeck(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handleReshuffleDeck(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
 
         if (!user.nickname.equals(user.room.adminNickname)) {
-            sendError(session, "Only the admin can reshuffle the deck");
+            sendError(connection, "Only the admin can reshuffle the deck");
             return;
         }
 
@@ -407,11 +407,11 @@ public class RoomWebSocket {
         response.put("remaining", result.remaining());
         response.put("timestamp", result.timestamp());
 
-        broadcastToRoom(getRoomCode(session), response.toString(), null);
+        broadcastToRoom(getRoomCode(connection), response.toString(), null);
     }
 
-    private void handleKickUser(Session session, JsonNode msg) {
-        RoomUser user = validateSession(session);
+    private void handleKickUser(WebSocketConnection connection, JsonNode msg) {
+        RoomUser user = validateSession(connection);
         if (user == null) {
             return;
         }
@@ -421,13 +421,30 @@ public class RoomWebSocket {
             return;
         }
 
-        boolean kicked = roomService.kickUser(user, targetNickname);
-        if (!kicked) {
-            sendError(session, "Cannot kick user");
-            return;
+        String roomCode = getRoomCode(connection);
+
+        // Localizar las conexiones ANTES de borrar el RoomUser, porque después
+        // ya no se puede resolver el token contra la base de datos.
+        Set<String> targetConnectionIds = new HashSet<>();
+        Set<String> connectionIds = roomConnections.get(roomCode);
+        if (connectionIds != null) {
+            for (String candidateId : List.copyOf(connectionIds)) {
+                String candidateToken = connectionIdToToken.get(candidateId);
+                if (candidateToken == null) {
+                    continue;
+                }
+                RoomUser candidate = roomService.findUserBySessionToken(candidateToken).orElse(null);
+                if (candidate != null && candidate.nickname.equals(targetNickname)) {
+                    targetConnectionIds.add(candidateId);
+                }
+            }
         }
 
-        String roomCode = getRoomCode(session);
+        boolean kicked = roomService.kickUser(user, targetNickname);
+        if (!kicked) {
+            sendError(connection, "Cannot kick user");
+            return;
+        }
 
         ObjectNode response = objectMapper.createObjectNode();
         response.put("type", "user_kicked");
@@ -436,41 +453,35 @@ public class RoomWebSocket {
 
         broadcastToRoom(roomCode, response.toString(), null);
 
-        Set<Session> sessions = roomSessions.get(roomCode);
-        if (sessions != null) {
-            for (Session s : sessions) {
-                String sToken = sessionIdToToken.get(s.getId());
-                if (sToken != null) {
-                    try {
-                        RoomUser targetUser = roomService.findUserBySessionToken(sToken).orElse(null);
-                        if (targetUser != null && targetUser.nickname.equals(targetNickname)) {
-                            ObjectNode kickMsg = objectMapper.createObjectNode();
-                            kickMsg.put("type", "you_kicked");
-                            kickMsg.put("byNickname", user.nickname);
-                            sendMessage(s, kickMsg.toString());
-                            s.close();
-                        }
-                    } catch (Exception e) {
-                        LOG.debugf(e, "No se pudo expulsar la sesión %s", s.getId());
-                    }
-                }
+        for (String targetConnectionId : targetConnectionIds) {
+            WebSocketConnection targetConnection = findConnection(targetConnectionId);
+            if (targetConnection == null) {
+                continue;
+            }
+            try {
+                ObjectNode kickMsg = objectMapper.createObjectNode();
+                kickMsg.put("type", "you_kicked");
+                kickMsg.put("byNickname", user.nickname);
+                sendMessage(targetConnection, kickMsg.toString());
+                targetConnection.closeAndAwait();
+            } catch (Exception e) {
+                LOG.debugf(e, "No se pudo expulsar la conexión %s", targetConnectionId);
             }
         }
 
         broadcastUserList(roomCode);
     }
 
-    private void handleDisconnect(Session session) {
-        String roomCode = sessionIdToRoomCode.remove(session.getId());
-        String sessionToken = sessionIdToToken.remove(session.getId());
+    private void handleDisconnect(String connectionId) {
+        String roomCode = connectionIdToRoomCode.remove(connectionId);
+        String sessionToken = connectionIdToToken.remove(connectionId);
 
-        // Remove the session from the room registry first.
         if (roomCode != null) {
-            Set<Session> sessions = roomSessions.get(roomCode);
-            if (sessions != null) {
-                sessions.remove(session);
-                if (sessions.isEmpty()) {
-                    roomSessions.remove(roomCode);
+            Set<String> connectionIds = roomConnections.get(roomCode);
+            if (connectionIds != null) {
+                connectionIds.remove(connectionId);
+                if (connectionIds.isEmpty()) {
+                    roomConnections.remove(roomCode);
                 }
             }
         }
@@ -479,9 +490,9 @@ public class RoomWebSocket {
             return;
         }
 
-        // If another live session already holds the same token (quick
+        // If another live connection already holds the same token (quick
         // reconnect / F5), keep the user connected and do not emit user_left.
-        if (sessionIdToToken.containsValue(sessionToken)) {
+        if (connectionIdToToken.containsValue(sessionToken)) {
             return;
         }
 
@@ -503,47 +514,55 @@ public class RoomWebSocket {
         }
     }
 
-    private RoomUser validateSession(Session session) {
-        String sessionToken = sessionIdToToken.get(session.getId());
+    private RoomUser validateSession(WebSocketConnection connection) {
+        String sessionToken = connectionIdToToken.get(connection.id());
         if (sessionToken == null) {
-            sendError(session, "Not authenticated. Send join first.");
+            sendError(connection, "Not authenticated. Send join first.");
             return null;
         }
         if (jwtService.validate(sessionToken) == null) {
-            sendError(session, "Invalid or expired token. Send renew_token.");
+            sendError(connection, "Invalid or expired token. Send renew_token.");
             return null;
         }
         RoomUser user = roomService.findUserBySessionToken(sessionToken).orElse(null);
         if (user == null) {
-            sendError(session, "Session not found");
+            sendError(connection, "Session not found");
             return null;
         }
         return user;
     }
 
-    private void registerSession(Session session, String roomCode, String sessionToken) {
-        sessionIdToRoomCode.put(session.getId(), roomCode);
-        sessionIdToToken.put(session.getId(), sessionToken);
-        roomSessions.computeIfAbsent(roomCode, key -> new CopyOnWriteArraySet<>()).add(session);
+    private void registerSession(WebSocketConnection connection, String roomCode, String sessionToken) {
+        String connectionId = connection.id();
+        connectionIdToRoomCode.put(connectionId, roomCode);
+        connectionIdToToken.put(connectionId, sessionToken);
+        roomConnections.computeIfAbsent(roomCode, key -> ConcurrentHashMap.newKeySet()).add(connectionId);
     }
 
-    private String getRoomCode(Session session) {
-        return sessionIdToRoomCode.get(session.getId());
+    private String getRoomCode(WebSocketConnection connection) {
+        return connectionIdToRoomCode.get(connection.id());
     }
 
-    private void broadcastToRoom(String roomCode, String message, Session exclude) {
+    private WebSocketConnection findConnection(String connectionId) {
+        return openConnections.findByConnectionId(connectionId).orElse(null);
+    }
+
+    private void broadcastToRoom(String roomCode, String message, String excludeConnectionId) {
         if (roomCode == null) {
             return;
         }
-        Set<Session> sessions = roomSessions.get(roomCode);
-        if (sessions == null) {
+        Set<String> connectionIds = roomConnections.get(roomCode);
+        if (connectionIds == null) {
             return;
         }
-        for (Session session : sessions) {
-            if (exclude != null && session.getId().equals(exclude.getId())) {
+        for (String connectionId : List.copyOf(connectionIds)) {
+            if (connectionId.equals(excludeConnectionId)) {
                 continue;
             }
-            sendMessage(session, message);
+            WebSocketConnection connection = findConnection(connectionId);
+            if (connection != null) {
+                sendMessage(connection, message);
+            }
         }
     }
 
@@ -576,20 +595,21 @@ public class RoomWebSocket {
         }
     }
 
-    private void sendError(Session session, String errorMessage) {
+    private void sendError(WebSocketConnection connection, String errorMessage) {
         ObjectNode msg = objectMapper.createObjectNode();
         msg.put("type", "error");
         msg.put("message", errorMessage);
-        sendMessage(session, msg.toString());
+        sendMessage(connection, msg.toString());
     }
 
-    private void sendMessage(Session session, String message) {
-        if (session.isOpen()) {
-            try {
-                session.getBasicRemote().sendText(message);
-            } catch (IOException e) {
-                LOG.debugf(e, "No se pudo enviar mensaje a la sesión %s", session.getId());
-            }
+    private void sendMessage(WebSocketConnection connection, String message) {
+        if (!connection.isOpen()) {
+            return;
+        }
+        try {
+            connection.sendTextAndAwait(message);
+        } catch (Exception e) {
+            LOG.debugf(e, "No se pudo enviar mensaje a la conexión %s", connection.id());
         }
     }
 
