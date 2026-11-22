@@ -280,9 +280,21 @@ import {
         <div class="pool-control">
           <span class="pool-label">Reserva</span>
           <div class="pool-value-wrap">
-            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0 || !backendOnline()" aria-label="Decrement pool">−</button>
+            <button class="pool-btn" (click)="doPoolDelta(-1)" [disabled]="poolValue() <= 0 || !backendOnline()" aria-label="Decrement pool">
+              <span class="pool-step-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                  <path d="M5 12h14" />
+                </svg>
+              </span>
+            </button>
             <span class="pool-value" [class.pool-empty]="poolValue() === 0" [class.pool-filled]="poolValue() > 0">{{ poolValue() }}</span>
-            <button class="pool-btn" (click)="doPoolDelta(1)" [disabled]="!backendOnline()" aria-label="Increment pool">+</button>
+            <button class="pool-btn" (click)="doPoolDelta(1)" [disabled]="!backendOnline()" aria-label="Increment pool">
+              <span class="pool-step-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </span>
+            </button>
             @if (isAdmin()) {
               <button class="pool-edit-btn" (click)="openPoolModal()" [disabled]="!backendOnline()" title="Set pool value">✎</button>
             }
@@ -734,7 +746,7 @@ import {
     .modifier-control .mod-label { font-size: 13px; color: var(--muted); font-weight: 500; }
     .modifier-control input {
       width: 56px; height: 36px; border-radius: var(--radius-sm);
-      border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+      border: 0; background: transparent; color: var(--fg);
       font-family: var(--font-display); font-size: 16px; font-weight: 700;
       text-align: center; padding: 0 var(--space-2);
     }
@@ -779,19 +791,33 @@ import {
     .admin-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .pool-edit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* Pool controls */
+    /* Pool controls: same stepper language as the dice counter, dialled down a notch. */
     .pool-control { display: flex; align-items: center; gap: var(--space-2); }
     .pool-label { font-size: 11px; color: var(--meta); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
-    .pool-value-wrap { display: flex; align-items: center; gap: 2px; }
-    .pool-btn {
-      width: 26px; height: 26px; border-radius: var(--radius-sm);
-      border: 1px solid var(--border-soft); background: var(--surface);
-      color: var(--fg); font-size: 14px; font-weight: 600;
-      display: grid; place-items: center; cursor: pointer;
-      transition: background var(--motion-fast);
+    .pool-value-wrap {
+      display: flex; align-items: center; gap: 2px;
+      background: var(--surface); border-radius: var(--radius-md);
+      padding: 1px; border: 1px solid var(--border);
     }
-    .pool-btn:hover { background: color-mix(in oklab, var(--surface), var(--accent) 6%); }
-    .pool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .pool-btn {
+      width: 40px; height: 44px; border-radius: 10px;
+      border: 0; background: transparent;
+      color: var(--muted);
+      display: grid; place-items: center; cursor: pointer;
+      transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast), transform 60ms;
+    }
+    .pool-step-icon { display: inline-flex; width: 22px; height: 22px; }
+    .pool-step-icon svg { display: block; width: 100%; height: 100%; }
+    .pool-btn:hover {
+      background: color-mix(in oklab, var(--accent) 8%, var(--accent-on));
+      color: var(--accent);
+    }
+    .pool-btn:active { transform: translateY(1px); }
+    .pool-btn:disabled {
+      opacity: 1; cursor: not-allowed; transform: none;
+      background: transparent; color: var(--meta);
+    }
+    .pool-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .pool-value {
       font-family: var(--font-display); font-size: 20px; font-weight: 700;
       min-width: 28px; text-align: center; line-height: 1;
@@ -802,6 +828,7 @@ import {
       width: 24px; height: 24px; border-radius: var(--radius-sm);
       border: none; background: transparent; color: var(--meta);
       font-size: 14px; display: grid; place-items: center; cursor: pointer;
+      margin: 0 8px 0 2px;
       transition: color var(--motion-fast);
     }
     .pool-edit-btn:hover { color: var(--accent); }
@@ -966,8 +993,9 @@ import {
       .pool-control { flex: 0 0 auto; gap: 2px; }
       .pool-label { display: none; }
       .pool-value-wrap { gap: 1px; }
-      .pool-btn { width: 22px; height: 26px; font-size: 13px; }
-      .pool-value { font-size: 17px; min-width: 18px; }
+      .pool-btn { width: 28px; height: 34px; border-radius: 8px; }
+      .pool-step-icon { width: 18px; height: 18px; }
+      .pool-value { font-size: 17px; min-width: 20px; }
       .pool-edit-btn { width: 20px; height: 22px; font-size: 12px; }
       .dice-counter { flex: 0 0 auto; gap: 1px; padding: 1px; }
       .dice-counter button { width: 34px; height: 34px; border-radius: 8px; }
@@ -998,7 +1026,9 @@ import {
       .status-pill { font-size: 11px; padding: 3px 7px; gap: 4px; }
       .header-menu-btn { width: 34px; height: 34px; font-size: 16px; }
       .controls-inner { gap: 1px; }
-      .pool-btn { width: 20px; }
+      .pool-btn { width: 24px; height: 34px; border-radius: 7px; }
+      .pool-step-icon { width: 16px; height: 16px; }
+      .pool-value { font-size: 16px; min-width: 18px; }
       .pool-edit-btn { width: 16px; }
       .modifier-control input { width: 36px; }
     }
