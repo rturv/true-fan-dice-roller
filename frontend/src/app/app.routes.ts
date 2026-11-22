@@ -14,6 +14,11 @@ export const routes: Routes = [
     loadComponent: () => import('./components/help/help').then(m => m.HelpComponent),
   },
   {
+    path: 'changelog',
+    loadComponent: () =>
+      import('./components/changelog/changelog').then(m => m.ChangelogComponent),
+  },
+  {
     path: '**',
     redirectTo: '',
   },

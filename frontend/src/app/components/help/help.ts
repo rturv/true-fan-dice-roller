@@ -214,7 +214,12 @@ import { APP_VERSION } from '../../version';
       <footer class="help-footer">
         <a class="back-link" routerLink="/">← Volver a la mesa</a>
         <p class="muted">Hecho con dados, cartas y malas decisiones.</p>
-        <p class="version">v{{ version }}</p>
+        <a
+          class="version"
+          routerLink="/changelog"
+          [attr.aria-label]="'Ver el historial de versiones (v' + version + ')'"
+          title="Ver el historial de versiones"
+        >v{{ version }}</a>
       </footer>
     </div>
   `,
@@ -370,6 +375,11 @@ import { APP_VERSION } from '../../version';
     .version {
       margin: 0; font-family: var(--font-mono); font-size: 11px;
       color: var(--meta); letter-spacing: 0.12em;
+      text-decoration: none;
+    }
+    .version:hover,
+    .version:focus-visible {
+      color: var(--accent); text-decoration: underline;
     }
 
     @media (max-width: 600px) {

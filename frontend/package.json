@@ -4,10 +4,17 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "prestart": "node scripts/generate-changelog.mjs",
     "build": "ng build",
+    "prebuild": "node scripts/generate-changelog.mjs",
     "build:static": "ng build --configuration production && node scripts/generate-env.mjs",
+    "prebuild:static": "node scripts/generate-changelog.mjs",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "prewatch": "node scripts/generate-changelog.mjs",
+    "test": "ng test",
+    "pretest": "node scripts/generate-changelog.mjs",
+    "changelog:sync": "node scripts/generate-changelog.mjs",
+    "changelog:check": "node scripts/generate-changelog.mjs --check"
   },
   "prettier": {
     "printWidth": 100,

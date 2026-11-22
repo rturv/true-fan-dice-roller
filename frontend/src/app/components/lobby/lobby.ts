@@ -77,7 +77,12 @@ import { APP_VERSION } from '../../version';
         </div>
 
         <a class="lobby-help" routerLink="/ayuda">¿Cómo se juega? Entra aquí, fenómeno →</a>
-        <div class="lobby-version">v{{ version }}</div>
+        <a
+          class="lobby-version"
+          routerLink="/changelog"
+          [attr.aria-label]="'Ver el historial de versiones (v' + version + ')'"
+          title="Ver el historial de versiones"
+        >v{{ version }}</a>
       </div>
     </div>
   `,
@@ -110,9 +115,14 @@ import { APP_VERSION } from '../../version';
       margin-bottom: 28px; line-height: 1.4;
     }
     .lobby-version {
-      margin-top: 16px; text-align: center;
+      display: block; margin-top: 16px; text-align: center;
       font-family: var(--font-mono); font-size: 11px;
       color: var(--meta); letter-spacing: 0.12em;
+      text-decoration: none;
+    }
+    .lobby-version:hover,
+    .lobby-version:focus-visible {
+      color: var(--accent); text-decoration: underline;
     }
     .lobby-form { display: flex; flex-direction: column; gap: 16px; }
     .field-group { display: flex; flex-direction: column; gap: 4px; }

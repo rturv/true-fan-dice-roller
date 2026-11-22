@@ -2,6 +2,8 @@
 
 Aplicación tipo chat para lanzar dados d6 (con explosión y modificador) y sacar cartas de una baraja española virtual, en tiempo real con amigos.
 
+📓 **[Changelog](changelog.md)** — qué ha cambiado en cada versión. También disponible dentro de la app, en `/changelog`, pulsando la etiqueta de versión.
+
 **Stack**: Angular 21 (frontend) + Quarkus 3.40 LTS / Java 25 (backend) + WebSockets Next + JPA (H2 en desarrollo, PostgreSQL en producción).
 
 ---
@@ -513,6 +515,7 @@ Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
 
 ```
 .
+├── changelog.md                          # Fuente única del historial de versiones
 ├── backend/                              # Quarkus 3.40 LTS — Java 21
 │   ├── src/main/java/.../entity/         # JPA: Room, RoomUser, ChatEntry
 │   ├── src/main/java/.../service/        # GameService, RoomService, JwtService, RoomCleanupService
@@ -521,6 +524,7 @@ Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
 │   └── src/main/docker/                  # Dockerfile.jvm, .native, .legacy-jar
 ├── frontend/                             # Angular 21
 │   ├── src/app/components/lobby/         # Pantalla de entrada
+│   ├── src/app/components/changelog/     # Página /changelog y datos generados
 │   ├── src/app/components/room/          # Sala, comandos de chat y listado de jugadores
 │   ├── src/app/components/room/dice-rain/ # Lluvia de dados y avalancha compartidas
 │   ├── src/app/components/room/easter-egg/ # Efectos secretos
@@ -528,6 +532,7 @@ Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
 │   ├── src/app/services/                 # WebSocket y health check
 │   ├── src/assets/env.template.js        # Plantilla de entorno runtime
 │   ├── scripts/generate-env.mjs          # Genera env.js en builds estáticos
+│   ├── scripts/generate-changelog.mjs    # Genera los datos de changelog.md
 │   ├── Dockerfile                        # Multi-stage (build + nginx)
 │   ├── nginx.conf                        # Configuración nginx SPA
 │   └── docker-entrypoint.sh              # Inyección de env vars
