@@ -3,7 +3,7 @@
 El backend se publica como una **imagen Docker con el ejecutable nativo de Quarkus** (sin JVM) y se guarda en GitHub Container Registry:
 
 ```text
-ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0
+ghcr.io/rturv/true-fan-dice-roller-ws:latest
 ```
 
 La publicación está **automatizada** con GitHub Actions (`.github/workflows/release-images.yml`): al empujar un tag `vX.Y.Z` se compila el nativo y se sube la imagen. Este documento describe ese pipeline y, además, el proceso manual equivalente para reproducirlo en local.
@@ -42,7 +42,7 @@ git push origin v1.0.0
 
 Qué hace el job `Backend (nativo)`:
 
-1. `actions/setup-java` instala JDK 21 y cachea `~/.m2`.
+1. `actions/setup-java` instala JDK 25 y cachea `~/.m2`.
 2. `./mvnw clean package -Pnative -DskipTests -Dquarkus.native.container-build=true` compila el bytecode en el runner y ejecuta `native-image` dentro del builder image Mandrel 25 definido en el `pom.xml`.
 3. `docker/build-push-action` empaqueta el binario `target/*-runner` con `Dockerfile.native` y lo sube a GHCR con las etiquetas derivadas del tag.
 
@@ -65,7 +65,7 @@ Etiquetas publicadas para el tag `v1.2.3`:
 ```mermaid
 flowchart LR
     Tag["git push origin v1.0.0"] --> CI["GitHub Actions<br/>release-images.yml"]
-    CI --> Mvn["JDK 21 + mvn package -Pnative<br/>native-image en contenedor Mandrel 25"]
+    CI --> Mvn["JDK 25 + mvn package -Pnative<br/>native-image en contenedor Mandrel 25"]
     Mvn --> Bin["target/*-runner<br/>binario ELF x86-64"]
     Bin --> Img["docker build<br/>Dockerfile.native"]
     Img --> GHCR["ghcr.io/rturv/true-fan-dice-roller-ws:1.0.0"]
@@ -77,7 +77,7 @@ flowchart LR
 - `-Dquarkus.native.container-build=true` compila el binario Linux **dentro de un contenedor**, así que no hace falta instalar GraalVM ni en local ni en el runner.
 - En CI el empaquetado es un `docker build -f src/main/docker/Dockerfile.native`. En local puedes hacerlo todo en un comando con `-Dquarkus.container-image.build=true` (ver [sección 1](#1-build-nativo-e-imagen)).
 - El resultado intermedio es un binario Linux en `target/*-runner`; `Dockerfile.native` lo empaqueta sobre `ubi9/ubi-minimal` y lo ejecuta como usuario `1001`.
-- El bytecode de la aplicación sigue siendo **Java 21** (`maven.compiler.release=21`); Mandrel 25 es solo el compilador nativo.
+- El bytecode de la aplicación sigue siendo **Java 25** (`maven.compiler.release=25`); Mandrel 25 es solo el compilador nativo.
 
 ---
 
@@ -86,7 +86,7 @@ flowchart LR
 | Requisito | Detalle |
 |---|---|
 | Docker | Docker Desktop o Engine en marcha (build nativo en contenedor + construcción de la imagen) |
-| JDK 21 | Para compilar el bytecode (`C:\programas\jdk-21.0.10` en local) |
+| JDK 25 | Para compilar el bytecode |
 | Maven 3.9+ | O el wrapper `mvnw` del repo |
 | Memoria | 4 GB libres recomendados para el builder nativo |
 | Cuenta GHCR | Usuario de GitHub con permiso `write:packages` |
@@ -105,7 +105,7 @@ El build real se hace en **un solo comando**: compila el nativo y construye la i
 
 ```powershell
 # Windows
-$env:JAVA_HOME="C:\programas\jdk-21.0.10"
+$env:JAVA_HOME="C:\programas\jdk-25.0.5"
 mvn clean package -Pnative `
   "-Dquarkus.native.container-build=true" `
   -DskipTests `
@@ -115,7 +115,7 @@ mvn clean package -Pnative `
 
 ```bash
 # Linux / macOS
-export JAVA_HOME=/path/to/jdk-21
+export JAVA_HOME=/path/to/jdk-25
 mvn clean package -Pnative \
   -Dquarkus.native.container-build=true \
   -DskipTests \
@@ -338,7 +338,7 @@ docker push ghcr.io/rturv/true-fan-dice-roller-ws:1.0.1
 
 Alternativas en el repo:
 
-- `backend/Dockerfile`: imagen JVM multi-stage (Maven + Temurin 21).
+- `backend/Dockerfile`: imagen JVM multi-stage (Maven + Temurin 25).
 - `backend/src/main/docker/Dockerfile.jvm`: imagen JVM con `run-java.sh`.
 - `backend/src/main/docker/Dockerfile.native`: la que se usa para GHCR.
 

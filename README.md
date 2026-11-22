@@ -44,7 +44,7 @@ flowchart LR
 
 - **Frontend**: SPA de Angular servida por nginx (Docker) o por un CDN estático (Render, GitHub Pages). No guarda estado de juego; solo mantiene la sesión y el tema.
 - **Backend**: Quarkus expone el WebSocket `/ws/room` para el chat y las acciones de juego, y los endpoints de salud `/health/live` y `/health/ready`. Es la única capa que habla con la base de datos.
-- **Base de datos**: PostgreSQL en producción. En desarrollo el perfil `dev` usa H2 en memoria, por lo que no hace falta levantar nada externo.
+- **Base de datos**: PostgreSQL en producción y en los compose; en desarrollo local con Maven el perfil `dev` usa H2 en memoria, por lo que no hace falta levantar nada externo.
 - **Comunicación**: el navegador descarga la SPA desde el frontend, pero el WebSocket y el health check van directamente al backend (por eso `BACKEND_WS_URL` debe apuntar al backend, no al frontend).
 
 ---
@@ -260,27 +260,34 @@ mvn test
 
 ### docker-compose (recomendado)
 
-#### Desarrollo (H2 en memoria)
+Los dos compose incluyen su propio PostgreSQL con volumen persistente, así que no hace falta tener ninguna base de datos corriendo aparte.
+
+#### Desarrollo (PostgreSQL incluido)
 
 ```bash
 docker compose -f docker-compose.desa.yml up -d
 ```
 
-Abrir `http://localhost:4200`. El backend usa H2 en memoria, no necesita base de datos externa.
+Abrir `http://localhost:4200`. La base de datos se crea sola y los datos quedan en el volumen `diceroller-desa_postgres-data`.
 
-#### Producción (PostgreSQL externo)
+Variables opcionales (valores por defecto entre paréntesis): `POSTGRES_DB` (`diceroller`), `POSTGRES_USER` (`diceroller`), `POSTGRES_PASSWORD` (`diceroller`) y `JWT_SECRET` (secreto de desarrollo).
+
+Para empezar de cero y borrar los datos:
 
 ```bash
-export DB_URL=jdbc:postgresql://mi-postgres:5432/diceroller
-export DB_USER=postgres
-export DB_PASSWORD=secreta
+docker compose -f docker-compose.desa.yml down -v
+```
+
+#### Producción (PostgreSQL incluido)
+
+```bash
 export JWT_SECRET=clave-hmac-de-al-menos-32-caracteres!!
 export BACKEND_WS_URL=wss://api.midominio.com/ws/room
 
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-PostgreSQL **no está incluido** en el compose — debes tenerlo corriendo aparte.
+PostgreSQL se levanta con el stack y guarda los datos en el volumen `diceroller-prod_postgres-data`. Las credenciales por defecto son `diceroller` / `diceroller`; cámbialas con `POSTGRES_DB`, `POSTGRES_USER` y `POSTGRES_PASSWORD` en un despliegue real.
 
 ---
 
@@ -368,9 +375,9 @@ git push origin v1.0.0
 
 Se publican las etiquetas `1.0.0`, `1.0` y `latest` (esta última solo en releases estables, sin guion en el tag). Usa el `GITHUB_TOKEN` del propio workflow, así que no hay que configurar ningún secret. Para probar el pipeline sin publicar versión: Actions → *Release images* → *Run workflow* (publica solo `sha-<short>`).
 
-### Docker Compose completo (ejemplo)
+### Docker Compose con imágenes publicadas (ejemplo)
 
-`docker-compose.yml` (puedes crearlo en la raíz):
+Los compose del repositorio ya incluyen PostgreSQL y compilan las imágenes en local. Si prefieres usar las imágenes de GHCR, este `docker-compose.yml` de ejemplo sirve como punto de partida:
 
 ```yaml
 services:
@@ -501,8 +508,10 @@ La URL del backend se define en **runtime** (Docker) o en **build time** (hostin
 | `BACKEND_WS_URL` | URL completa del WebSocket | `wss://api.example.com/ws/room` |
 | `BACKEND_HTTP_URL` | URL HTTP del backend (health check) | `https://api.example.com` |
 | `JWT_SECRET` | Clave HMAC-SHA256 (mínimo 32 caracteres) | `clave-hmac-de-al-menos-32-caracteres!!` |
-| `DB_URL` | JDBC de PostgreSQL (perfil `prod`) | `jdbc:postgresql://host:5432/diceroller` |
-| `DB_USER` / `DB_PASSWORD` | Credenciales de PostgreSQL | `postgres` / `secreta` |
+| `DB_URL` | JDBC de PostgreSQL (perfil `prod`) | `jdbc:postgresql://postgres:5432/diceroller` |
+| `DB_USER` / `DB_PASSWORD` | Credenciales de PostgreSQL | `diceroller` / `diceroller` |
+| `POSTGRES_DB` | Nombre de la base de datos del contenedor PostgreSQL | `diceroller` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` | Credenciales del contenedor PostgreSQL | `diceroller` / `diceroller` |
 | `CORS_ORIGINS` | Orígenes permitidos (por defecto `*`) | `https://app.midominio.com` |
 
 Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
@@ -537,8 +546,8 @@ Si `BACKEND_WS_URL` está vacío, el frontend intenta auto-detectarlo:
 │   ├── nginx.conf                        # Configuración nginx SPA
 │   └── docker-entrypoint.sh              # Inyección de env vars
 ├── open-design/                          # Diseño visual y especificación
-├── docker-compose.desa.yml               # Compose de desarrollo (H2)
-├── docker-compose.prod.yml               # Compose de producción (PostgreSQL)
+├── docker-compose.desa.yml               # Compose de desarrollo con PostgreSQL incluido
+├── docker-compose.prod.yml               # Compose de producción con PostgreSQL incluido
 └── .github/workflows/release-images.yml  # Build y push de ambas imágenes a GHCR
 ```
 

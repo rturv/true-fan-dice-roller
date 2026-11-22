@@ -1,24 +1,57 @@
 # =============================================================================
 # Docker Compose — DESARROLLO
-# Base de datos: H2 en memoria (incluido en el backend)
+# Base de datos: PostgreSQL incluida en el stack (volumen persistente)
 # Frontend:     http://localhost:4200
 # Backend:      http://localhost:8080
+#
+# Variables opcionales (valores por defecto entre paréntesis):
+#   POSTGRES_DB       (diceroller)
+#   POSTGRES_USER     (diceroller)
+#   POSTGRES_PASSWORD (diceroller)
+#   JWT_SECRET        (secreto de desarrollo)
 # =============================================================================
 name: diceroller-desa
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: diceroller-postgres-desa
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-diceroller}
+      - POSTGRES_USER=${POSTGRES_USER:-diceroller}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-diceroller}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - diceroller-net
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        QUARKUS_PROFILE: dev
+        # El datasource se fija en tiempo de compilación: se usa el perfil prod
+        # para que el artefacto apunte a PostgreSQL en lugar de H2.
+        QUARKUS_PROFILE: prod
     container_name: diceroller-backend-desa
     ports:
       - "8080:8080"
     environment:
-      - QUARKUS_PROFILE=dev
-      - JWT_SECRET=diceroller-dev-secret-key-min-32chars!!
+      - QUARKUS_PROFILE=prod
+      - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-diceroller}
+      - DB_USER=${POSTGRES_USER:-diceroller}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-diceroller}
+      - JWT_SECRET=${JWT_SECRET:-diceroller-dev-secret-key-min-32chars!!}
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
       interval: 15s
@@ -38,9 +71,13 @@ services:
       - BACKEND_WS_URL=ws://localhost:8080/ws/room
       - BACKEND_HTTP_URL=http://localhost:8080
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     networks:
       - diceroller-net
+
+volumes:
+  postgres-data:
 
 networks:
   diceroller-net:

@@ -5,8 +5,8 @@ FROM maven:3.9.16-eclipse-temurin-25-alpine@sha256:781f1da87cd3d142e66e47cc149c4
 
 WORKDIR /app
 
-# Perfil de build de Quarkus. El compose de desarrollo pasa `dev` para que
-# el datasource H2 quede fijado en el artefacto; producción usa `prod`.
+# Perfil de build de Quarkus. Los compose fijan `prod` para que el artefacto
+# apunte al datasource PostgreSQL; con `dev` se usaría H2 en memoria.
 ARG QUARKUS_PROFILE=prod
 
 # Copy all files and build
