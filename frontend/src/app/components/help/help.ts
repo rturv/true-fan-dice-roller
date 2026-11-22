@@ -375,7 +375,7 @@ import { APP_VERSION } from '../../version';
     .version {
       margin: 0; font-family: var(--font-mono); font-size: 11px;
       color: var(--meta); letter-spacing: 0.12em;
-      text-decoration: none;
+      text-decoration: underline;
     }
     .version:hover,
     .version:focus-visible {

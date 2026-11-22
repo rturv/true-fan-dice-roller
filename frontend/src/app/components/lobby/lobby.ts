@@ -118,7 +118,7 @@ import { APP_VERSION } from '../../version';
       display: block; margin-top: 16px; text-align: center;
       font-family: var(--font-mono); font-size: 11px;
       color: var(--meta); letter-spacing: 0.12em;
-      text-decoration: none;
+      text-decoration: underline;
     }
     .lobby-version:hover,
     .lobby-version:focus-visible {
